@@ -1,5 +1,9 @@
 import requests
 import datetime
+import os
+API_KEY = os.getenv("OPENWEATHER_KEY")
+server_key = os.getenv("SERVERCHAN_KEY")
+
 
 API_KEY = "你的openweather api key"  # 去 openweathermap.org 注册
 CITY = "Beijing"  # 你要查询的城市
