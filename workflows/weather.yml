@@ -2,7 +2,7 @@ name: Rain Reminder
 
 on:
   schedule:
-    - cron: "0 23 * * *"   # UTC 时间 23 点，相当于北京时间 07:00
+    - cron: "0 9 * * *"   # UTC 时间 比柏林早两小时，比悉尼晚10小时
   workflow_dispatch:       # 允许手动触发
 
 jobs:
