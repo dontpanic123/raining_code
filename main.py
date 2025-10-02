@@ -7,6 +7,13 @@ CITY = "Beijing"
 url = f"http://api.openweathermap.org/data/2.5/forecast?q={CITY}&appid={API_KEY}&lang=zh_cn&units=metric"
 res = requests.get(url).json()
 
+
+# Debug：把返回内容打印出来
+print("API 返回结果:", res)
+
+if "list" not in res:
+    raise Exception(f"OpenWeather API 出错: {res}")
+    
 tomorrow = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
 rain_expected = False
 weather_details = []
@@ -33,13 +40,12 @@ else:
     details = "\n".join(weather_details)
     msg = f"明天 {CITY} 天气预报:\n{details}\n\n{rain_note}"
 
-# 企业微信群机器人推送
-WEBHOOK = os.getenv("WECHAT_WEBHOOK")
-data = {
-    "msgtype": "text",
-    "text": {
-        "content": msg
-    }
-}
-resp = requests.post(WEBHOOK, json=data)
-print("推送结果:", resp.text)
+
+# 微信推送
+server_key = os.getenv("SERVERCHAN_KEY")
+if server_key:
+    push_url = f"https://sctapi.ftqq.com/{server_key}.send"
+    requests.post(push_url, data={"title": "带伞提醒", "desp": msg})
+
+
+
