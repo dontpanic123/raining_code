@@ -1,7 +1,7 @@
 import os, requests, datetime
 
 API_KEY = os.getenv("OPENWEATHER_KEY")  # OpenWeather API Key
-CITY = "Beijing"
+CITY = "Sydney"
 
 # 请求天气
 url = f"http://api.openweathermap.org/data/2.5/forecast?q={CITY}&appid={API_KEY}&lang=zh_cn&units=metric"
