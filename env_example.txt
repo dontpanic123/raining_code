@@ -1,0 +1,14 @@
+# 天气API配置
+OPENWEATHER_KEY=your_openweather_api_key_here
+
+# 邮箱发送配置
+SENDER_EMAIL=liukun3142@gmail.com
+SENDER_PASSWORD=jbie tkmk wrmk jtuy
+RECIPIENT_EMAIL=missxin1018@gmail.com
+
+# SMTP服务器配置（可选，默认使用Gmail）
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+
+# 城市配置（可选，默认悉尼）
+CITY=Sydney
