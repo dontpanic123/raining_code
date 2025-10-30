@@ -81,7 +81,9 @@ recipient_email = os.getenv("RECIPIENT_EMAIL")  # 接收者邮箱
 if recipient_email:
     send_email("带伞提醒", msg, recipient_email)
 else:
-    print("未设置接收者邮箱，跳过邮件发送")
+    print("❌ 未设置接收者邮箱，跳过邮件发送")
+    print("   请设置环境变量: export RECIPIENT_EMAIL='your_email@example.com'")
+    print("   或在 GitHub Secrets 中设置 RECIPIENT_EMAIL")
 
 
 
