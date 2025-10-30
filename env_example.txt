@@ -3,8 +3,9 @@ OPENWEATHER_KEY=your_openweather_api_key_here
 
 # 邮箱发送配置
 SENDER_EMAIL=liukun3142@gmail.com
-SENDER_PASSWORD=jbie tkmk wrmk jtuy
-RECIPIENT_EMAIL=missxin1018@gmail.com
+SENDER_PASSWORD=your_app_password_here
+# 支持多个收件人，用逗号分隔
+RECIPIENT_EMAIL=missxin1018@gmail.com,another@example.com
 
 # SMTP服务器配置（可选，默认使用Gmail）
 SMTP_SERVER=smtp.gmail.com

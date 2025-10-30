@@ -24,9 +24,15 @@ def send_test_email():
         print("请设置以下环境变量：")
         print("  SENDER_EMAIL=your_email@gmail.com")
         print("  SENDER_PASSWORD=your_app_password")
-        print("  RECIPIENT_EMAIL=recipient@example.com")
+        print("  RECIPIENT_EMAIL=recipient@example.com,recipient2@example.com (支持多个，用逗号分隔)")
         print("  SMTP_SERVER=smtp.gmail.com (可选)")
         print("  SMTP_PORT=587 (可选)")
+        return False
+    
+    # 解析多个收件人邮箱
+    recipient_emails = [email.strip() for email in recipient_email.split(",") if email.strip()]
+    if not recipient_emails:
+        print("❌ 未检测到有效的收件人邮箱")
         return False
     
     # 测试邮件内容
@@ -54,17 +60,22 @@ def send_test_email():
         
         print(f"📧 正在发送测试邮件...")
         print(f"   发送者: {sender_email}")
-        print(f"   接收者: {recipient_email}")
+        print(f"   接收者: {len(recipient_emails)} 个邮箱")
         print(f"   SMTP服务器: {smtp_server}:{smtp_port}")
         
-        # 连接SMTP服务器并发送邮件
+        # 连接SMTP服务器
         with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.starttls()
             server.login(sender_email, sender_password)
-            server.send_message(message)
             
-        print("✅ 测试邮件发送成功！")
-        print(f"   请检查 {recipient_email} 的收件箱")
+            # 向每个收件人发送邮件
+            for email in recipient_emails:
+                message["To"] = email
+                server.send_message(message)
+                print(f"   ✅ 已发送到: {email}")
+            
+        print(f"\n✅ 测试邮件发送成功！")
+        print(f"   已向 {len(recipient_emails)} 个收件人发送邮件")
         return True
         
     except smtplib.SMTPAuthenticationError:

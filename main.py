@@ -76,14 +76,23 @@ def send_email(subject, body, to_email):
     except Exception as e:
         print(f"邮件发送失败: {e}")
 
-# 发送天气邮件
-recipient_email = os.getenv("RECIPIENT_EMAIL")  # 接收者邮箱
-if recipient_email:
-    send_email("带伞提醒", msg, recipient_email)
+# 发送天气邮件（支持多个收件人，用逗号分隔）
+recipient_emails_str = os.getenv("RECIPIENT_EMAIL", "")  # 接收者邮箱，支持多个，用逗号分隔
+if recipient_emails_str:
+    # 分割邮箱地址，去除空白字符
+    recipient_emails = [email.strip() for email in recipient_emails_str.split(",") if email.strip()]
+    
+    if recipient_emails:
+        print(f"📧 准备发送邮件到 {len(recipient_emails)} 个收件人: {', '.join(recipient_emails)}")
+        for email in recipient_emails:
+            send_email("带伞提醒", msg, email)
+        print(f"✅ 已向所有收件人发送邮件")
+    else:
+        print("❌ 未检测到有效的收件人邮箱")
 else:
     print("❌ 未设置接收者邮箱，跳过邮件发送")
-    print("   请设置环境变量: export RECIPIENT_EMAIL='your_email@example.com'")
-    print("   或在 GitHub Secrets 中设置 RECIPIENT_EMAIL")
+    print("   请设置环境变量: export RECIPIENT_EMAIL='email1@example.com,email2@example.com'")
+    print("   或在 GitHub Secrets 中设置 RECIPIENT_EMAIL（支持多个邮箱，用逗号分隔）")
 
 
 
