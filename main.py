@@ -1,9 +1,63 @@
-import os, requests, datetime, smtplib
+import os, requests, datetime, smtplib, hashlib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 API_KEY = os.getenv("OPENWEATHER_KEY")  # OpenWeather API Key
 CITY = os.getenv("CITY", "Sydney")  # 城市名称，默认悉尼
+
+def get_geo_fact(city_name):
+    """根据城市名称返回有趣的地理知识"""
+    city_facts = {
+        "Sydney": "悉尼歌剧院的设计灵感来自于切开的橘子瓣，而不是帆船。",
+        "北京": "北京是全世界唯一既举办过夏季奥运会又举办过冬季奥运会的城市。",
+        "Beijing": "北京是全世界唯一既举办过夏季奥运会又举办过冬季奥运会的城市。",
+        "上海": "上海的黄浦江实际上是一条河，而非真正的江。",
+        "Shanghai": "上海的黄浦江实际上是一条河，而非真正的江。",
+        "深圳": "深圳在40年前还是一个小渔村，现在已成为拥有1700万人口的超大城市。",
+        "Shenzhen": "深圳在40年前还是一个小渔村，现在已成为拥有1700万人口的超大城市。",
+        "广州": "广州是海上丝绸之路的起点之一，有2000多年的对外贸易历史。",
+        "Guangzhou": "广州是海上丝绸之路的起点之一，有2000多年的对外贸易历史。",
+        "杭州": "西湖的苏堤和白堤分别是以两位著名诗人苏东坡和白居易的名字命名的。",
+        "Hangzhou": "西湖的苏堤和白堤分别是以两位著名诗人苏东坡和白居易的名字命名的。",
+        "成都": "成都是大熊猫的故乡，也是全世界唯一一个在城市中心设立大熊猫繁育基地的城市。",
+        "Chengdu": "成都是大熊猫的故乡，也是全世界唯一一个在城市中心设立大熊猫繁育基地的城市。",
+        "纽约": "纽约的中央公园占地341公顷，比摩纳哥公国还大。",
+        "New York": "纽约的中央公园占地341公顷，比摩纳哥公国还大。",
+        "伦敦": "伦敦的地铁系统是世界上最古老的地铁系统，1863年就开始运营了。",
+        "London": "伦敦的地铁系统是世界上最古老的地铁系统，1863年就开始运营了。",
+        "东京": "东京是世界上人口最密集的大都市区，但同时也是犯罪率最低的城市之一。",
+        "Tokyo": "东京是世界上人口最密集的大都市区，但同时也是犯罪率最低的城市之一。",
+        "巴黎": "埃菲尔铁塔在建造时曾经被很多艺术家和知识分子反对，认为它破坏了巴黎的美景。",
+        "Paris": "埃菲尔铁塔在建造时曾经被很多艺术家和知识分子反对，认为它破坏了巴黎的美景。",
+        "柏林": "柏林拥有比威尼斯更多的桥梁，约有1700座。",
+        "Berlin": "柏林拥有比威尼斯更多的桥梁，约有1700座。",
+        "墨尔本": "墨尔本连续多年被评为全球最宜居城市，有"澳大利亚的文化之都"之称。",
+        "Melbourne": "墨尔本连续多年被评为全球最宜居城市，有"澳大利亚的文化之都"之称。",
+    }
+    
+    # 通用地理知识（如果找不到对应城市）
+    general_facts = [
+        "地球上有约200个国家，但只有23个国家的国界线是完全笔直的。",
+        "世界上最长的山脉不是在地面上，而是在海底——大西洋中脊全长约16000公里。",
+        "地球上最干燥的地方不是撒哈拉沙漠，而是南极洲的麦克默多干谷，那里已经有200万年没有下雨了。",
+        "澳大利亚是世界上唯一一个国土覆盖整个大陆的国家。",
+        "如果你把地球上的所有冰都融化，海平面会上升约70米。",
+        "地球自转速度正在减慢，每天的时长每100年增加约1.7毫秒。",
+    ]
+    
+    # 尝试匹配城市名（不区分大小写）
+    city_key = None
+    for key in city_facts.keys():
+        if city_name.lower() in key.lower() or key.lower() in city_name.lower():
+            city_key = key
+            break
+    
+    if city_key:
+        return city_facts[city_key]
+    else:
+        # 随机返回一个通用地理知识（使用城市名的hash来确保同一城市总是返回相同的知识）
+        city_hash = int(hashlib.md5(city_name.encode()).hexdigest(), 16)
+        return general_facts[city_hash % len(general_facts)]
 
 # 请求天气
 url = f"http://api.openweathermap.org/data/2.5/forecast?q={CITY}&appid={API_KEY}&lang=zh_cn&units=metric"
@@ -106,68 +160,51 @@ else:
     
     # 构造格式化的邮件内容
     msg_parts = []
-    msg_parts.append(f"📅 明天 {tomorrow.strftime('%Y年%m月%d日')} {CITY} 天气预报")
-    msg_parts.append("=" * 50)
+    msg_parts.append(f"{tomorrow.strftime('%Y年%m月%d日')} {CITY} 天气预报")
     msg_parts.append("")
     
-    # 异常天气预警
+    # 异常天气预警（突出显示）
     if extreme_weather:
-        msg_parts.append("⚠️ 【异常天气预警】")
+        msg_parts.append("【降雨预警】")
         for ew in extreme_weather:
             if "rain_volume" in ew:
-                rain_info = f" | 降雨量: {ew['rain_volume']}mm" if ew['rain_volume'] > 0 else ""
-                msg_parts.append(f"  ☔ {ew['time']} - {ew['desc']} (降水概率: {int(ew['pop']*100)}%){rain_info}")
+                rain_info = f" 降雨量{ew['rain_volume']:.1f}mm" if ew['rain_volume'] > 0 else ""
+                msg_parts.append(f"{ew['time']}: {ew['desc']} 降水概率{int(ew['pop']*100)}%{rain_info}")
             else:
-                msg_parts.append(f"  ⚠️ {ew['time']} - {ew['desc']}")
+                msg_parts.append(f"{ew['time']}: {ew['desc']}")
         msg_parts.append("")
     
-    # 各时段详细预报
-    msg_parts.append("📊 分时段预报：")
-    msg_parts.append("")
-    
+    # 各时段预报（简洁格式）
     for period_name, period_info in period_weather.items():
-        msg_parts.append(f"【{period_name}】")
+        # 时间段标题（去掉括号）
+        period_title = period_name.split("(")[0].strip()
+        msg_parts.append(f"{period_title}")
         
-        # 天气描述和温度
-        weather_emoji = {
-            "Rain": "☔",
-            "Thunderstorm": "⛈️",
-            "Drizzle": "🌦️",
-            "Snow": "❄️",
-            "Clear": "☀️",
-            "Clouds": "☁️",
-            "Mist": "🌫️",
-            "Fog": "🌫️"
-        }
-        emoji = weather_emoji.get(period_info["main_weather"], "🌤️")
+        # 关键信息：天气、温度、降水
+        weather_line = f"天气: {period_info['main_desc']}"
+        temp_line = f"温度: {period_info['min_temp']:.0f}~{period_info['max_temp']:.0f}°C (体感{period_info['avg_feels_like']:.0f}°C)"
         
-        msg_parts.append(f"  {emoji} {period_info['main_desc']}")
-        msg_parts.append(f"  🌡️ 温度: {period_info['min_temp']:.1f}°C ~ {period_info['max_temp']:.1f}°C")
-        msg_parts.append(f"  🌡️ 体感: {period_info['avg_feels_like']:.1f}°C")
-        
-        # 降雨信息（如果有）
         if period_info["max_pop"] > 0:
-            msg_parts.append(f"  ☔ 降水概率: {int(period_info['max_pop']*100)}%")
+            rain_line = f"降水概率: {int(period_info['max_pop']*100)}%"
             if period_info["max_rain"] > 0:
-                msg_parts.append(f"  💧 降雨量: {period_info['max_rain']:.1f}mm")
-        
-        # 详细时段数据
-        msg_parts.append("  详细:")
-        for w in period_info["data"]:
-            wind_info = f"🌬️{w['wind_speed']:.1f}m/s" if w['wind_speed'] > 5 else ""
-            pop_info = f"☔{int(w['pop']*100)}%" if w['pop'] > 0 else ""
-            msg_parts.append(f"    {w['time'].strftime('%H:%M')}: {w['temp']:.1f}°C 💧{w['humidity']}% {wind_info} {pop_info}".strip())
+                rain_line += f" 降雨量: {period_info['max_rain']:.1f}mm"
+            msg_parts.append(f"{weather_line} | {temp_line} | {rain_line}")
+        else:
+            msg_parts.append(f"{weather_line} | {temp_line}")
         
         msg_parts.append("")
     
-    # 总结和建议
-    msg_parts.append("=" * 50)
+    # 简短提示
     if rain_expected:
-        msg_parts.append("☔ 【温馨提示】明天有降雨，请记得带伞！")
+        msg_parts.append("提示: 明天有降雨，请带伞")
     elif extreme_weather:
-        msg_parts.append("⚠️ 【温馨提示】明天有极端天气，请注意安全！")
-    else:
-        msg_parts.append("😎 【温馨提示】明天天气良好，适合出行！")
+        msg_parts.append("提示: 明天有极端天气，请注意安全")
+    
+    # 添加有趣的地理知识
+    msg_parts.append("")
+    msg_parts.append("【地理小知识】")
+    geo_fact = get_geo_fact(CITY)
+    msg_parts.append(geo_fact)
     
     msg = "\n".join(msg_parts)
 
