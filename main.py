@@ -320,7 +320,7 @@ else:
     
     # 添加有趣的地理知识（基于日期，每天不同）
     msg_parts.append("")
-    msg_parts.append("【地理小知识】")
+    msg_parts.append(" ")
     geo_fact = get_geo_fact(CITY, tomorrow)
     msg_parts.append(geo_fact)
     
