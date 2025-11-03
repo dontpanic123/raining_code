@@ -369,7 +369,7 @@ if recipient_emails_str:
     if recipient_emails:
         print(f"📧 准备发送邮件到 {len(recipient_emails)} 个收件人: {', '.join(recipient_emails)}")
         for email in recipient_emails:
-            send_email("带伞提醒", msg, email)
+            send_email("今天小宝要带伞吗？", msg, email)
         print(f"✅ 已向所有收件人发送邮件")
     else:
         print("❌ 未检测到有效的收件人邮箱")
