@@ -5,9 +5,8 @@ from email.mime.multipart import MIMEMultipart
 API_KEY = os.getenv("OPENWEATHER_KEY")  # OpenWeather API Key
 CITY = os.getenv("CITY", "Sydney")  # 城市名称，默认悉尼
 
-def get_geo_fact(city_name, date=None):
-    """根据城市名称和日期返回有趣的地理知识（每天不同）"""
-    # 为每个城市准备多条知识，每天轮换显示
+def get_geo_fact(date=None):
+    """根据日期返回有趣的地理知识（每天不同，所有城市看到相同的知识）"""
     city_facts_list = {
         "Sydney": [
             "悉尼歌剧院的设计灵感来自于切开的橘子瓣，而不是帆船。",
@@ -321,7 +320,7 @@ else:
     # 添加有趣的地理知识（基于日期，每天不同）
     msg_parts.append("")
     msg_parts.append(" ")
-    geo_fact = get_geo_fact(CITY, tomorrow)
+    geo_fact = get_geo_fact(tomorrow)
     msg_parts.append(geo_fact)
     
     msg = "\n".join(msg_parts)
