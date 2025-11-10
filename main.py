@@ -197,133 +197,247 @@ time_periods = {
     "晚上 (18:00-23:00)": (18, 23)
 }
 
-if "list" not in res:
-    msg = f"天气接口错误: {res}"
-else:
-    # 收集明天的天气数据
-    tomorrow_data = []
-    rain_expected = False
-    extreme_weather = []
-    
-    for item in res["list"]:
-        dt = datetime.datetime.fromtimestamp(item["dt"])
-        if dt.date() == tomorrow:
-            desc = item["weather"][0]["description"]
-            main_weather = item["weather"][0]["main"]
-            temp = item["main"]["temp"]
-            feels_like = item["main"]["feels_like"]
-            humidity = item["main"]["humidity"]
-            wind_speed = item["wind"]["speed"]
-            pop = item.get("pop", 0)  # 降水概率
-            rain_volume = item.get("rain", {}).get("3h", 0)  # 3小时降雨量
-            
-            weather_info = {
-                "time": dt,
-                "hour": dt.hour,
+# 收集明天的天气数据
+tomorrow_data = []
+rain_expected = False
+extreme_weather = []
+
+for item in res["list"]:
+    dt = datetime.datetime.fromtimestamp(item["dt"])
+    if dt.date() == tomorrow:
+        desc = item["weather"][0]["description"]
+        main_weather = item["weather"][0]["main"]
+        icon = item["weather"][0].get("icon", "01d")  # 天气图标代码
+        temp = item["main"]["temp"]
+        feels_like = item["main"]["feels_like"]
+        humidity = item["main"]["humidity"]
+        wind_speed = item["wind"]["speed"]
+        pop = item.get("pop", 0)  # 降水概率
+        rain_volume = item.get("rain", {}).get("3h", 0)  # 3小时降雨量
+        
+        weather_info = {
+            "time": dt,
+            "hour": dt.hour,
+            "desc": desc,
+            "main": main_weather,
+            "icon": icon,  # 添加图标代码
+            "temp": temp,
+            "feels_like": feels_like,
+            "humidity": humidity,
+            "wind_speed": wind_speed,
+            "pop": pop,
+            "rain_volume": rain_volume
+        }
+        tomorrow_data.append(weather_info)
+        
+        # 检测异常天气
+        if main_weather in ["Rain", "Thunderstorm", "Drizzle"] or "雨" in desc:
+            rain_expected = True
+            extreme_weather.append({
+                "time": dt.strftime("%H:%M"),
                 "desc": desc,
-                "main": main_weather,
-                "temp": temp,
-                "feels_like": feels_like,
-                "humidity": humidity,
-                "wind_speed": wind_speed,
                 "pop": pop,
                 "rain_volume": rain_volume
-            }
-            tomorrow_data.append(weather_info)
-            
-            # 检测异常天气
-            if main_weather in ["Rain", "Thunderstorm", "Drizzle"] or "雨" in desc:
-                rain_expected = True
-                extreme_weather.append({
-                    "time": dt.strftime("%H:%M"),
-                    "desc": desc,
-                    "pop": pop,
-                    "rain_volume": rain_volume
-                })
-            elif main_weather in ["Snow", "Squall", "Extreme"] or "雪" in desc:
-                extreme_weather.append({
-                    "time": dt.strftime("%H:%M"),
-                    "desc": desc,
-                    "type": "极端天气"
-                })
-    
-    # 按时间段分组整理天气信息
-    period_weather = {}
-    for period_name, (start_hour, end_hour) in time_periods.items():
-        period_data = [w for w in tomorrow_data if start_hour <= w["hour"] < end_hour]
-        if period_data:
-            # 计算该时间段的平均温度和主要天气
-            avg_temp = sum(w["temp"] for w in period_data) / len(period_data)
-            max_temp = max(w["temp"] for w in period_data)
-            min_temp = min(w["temp"] for w in period_data)
-            avg_feels_like = sum(w["feels_like"] for w in period_data) / len(period_data)
-            max_pop = max(w["pop"] for w in period_data)
-            max_rain = max(w["rain_volume"] for w in period_data)
-            
-            # 找到主要天气状况（降雨概率最高的时段）
-            main_weather_item = max(period_data, key=lambda x: x["pop"])
-            
-            period_weather[period_name] = {
-                "data": period_data,
-                "avg_temp": avg_temp,
-                "max_temp": max_temp,
-                "min_temp": min_temp,
-                "avg_feels_like": avg_feels_like,
-                "max_pop": max_pop,
-                "max_rain": max_rain,
-                "main_desc": main_weather_item["desc"],
-                "main_weather": main_weather_item["main"]
-            }
-    
-    # 构造格式化的邮件内容
-    msg_parts = []
-    msg_parts.append(f"{tomorrow.strftime('%Y年%m月%d日')} {CITY} 天气预报")
-    msg_parts.append("")
-    
-    # 异常天气预警（突出显示）
-    if extreme_weather:
-        msg_parts.append("【降雨预警】")
-        for ew in extreme_weather:
-            if "rain_volume" in ew:
-                rain_info = f" 降雨量{ew['rain_volume']:.1f}mm" if ew['rain_volume'] > 0 else ""
-                msg_parts.append(f"{ew['time']}: {ew['desc']} 降水概率{int(ew['pop']*100)}%{rain_info}")
-            else:
-                msg_parts.append(f"{ew['time']}: {ew['desc']}")
-        msg_parts.append("")
-    
-    # 各时段预报（简洁格式）
-    for period_name, period_info in period_weather.items():
-        # 时间段标题（去掉括号）
-        period_title = period_name.split("(")[0].strip()
-        msg_parts.append(f"{period_title}")
+            })
+        elif main_weather in ["Snow", "Squall", "Extreme"] or "雪" in desc:
+            extreme_weather.append({
+                "time": dt.strftime("%H:%M"),
+                "desc": desc,
+                "type": "极端天气"
+            })
+
+# 按时间段分组整理天气信息
+period_weather = {}
+for period_name, (start_hour, end_hour) in time_periods.items():
+    period_data = [w for w in tomorrow_data if start_hour <= w["hour"] < end_hour]
+    if period_data:
+        # 计算该时间段的平均温度和主要天气
+        avg_temp = sum(w["temp"] for w in period_data) / len(period_data)
+        max_temp = max(w["temp"] for w in period_data)
+        min_temp = min(w["temp"] for w in period_data)
+        avg_feels_like = sum(w["feels_like"] for w in period_data) / len(period_data)
+        max_pop = max(w["pop"] for w in period_data)
+        max_rain = max(w["rain_volume"] for w in period_data)
         
-        # 关键信息：天气、温度、降水
-        weather_line = f"天气: {period_info['main_desc']}"
-        temp_line = f"温度: {period_info['min_temp']:.0f}~{period_info['max_temp']:.0f}°C (体感{period_info['avg_feels_like']:.0f}°C)"
+        # 找到主要天气状况（降雨概率最高的时段）
+        main_weather_item = max(period_data, key=lambda x: x["pop"])
         
-        if period_info["max_pop"] > 0:
-            rain_line = f"降水概率: {int(period_info['max_pop']*100)}%"
-            if period_info["max_rain"] > 0:
-                rain_line += f" 降雨量: {period_info['max_rain']:.1f}mm"
-            msg_parts.append(f"{weather_line} | {temp_line} | {rain_line}")
+        period_weather[period_name] = {
+            "data": period_data,
+            "avg_temp": avg_temp,
+            "max_temp": max_temp,
+            "min_temp": min_temp,
+            "avg_feels_like": avg_feels_like,
+            "max_pop": max_pop,
+            "max_rain": max_rain,
+            "main_desc": main_weather_item["desc"],
+            "main_weather": main_weather_item["main"],
+            "icon": main_weather_item.get("icon", "01d")  # 添加图标代码
+        }
+
+# 构造格式化的邮件内容（HTML格式，支持图片）
+html_parts = []
+html_parts.append("""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .header { font-size: 18px; font-weight: bold; margin-bottom: 15px; }
+        .warning { background-color: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; margin: 10px 0; }
+        .period { margin: 15px 0; padding: 10px; background-color: #f8f9fa; border-radius: 5px; }
+        .period-title { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
+        .weather-info { margin: 5px 0; }
+        .tip { background-color: #d1ecf1; padding: 10px; border-left: 4px solid #0c5460; margin: 10px 0; }
+        .fact { background-color: #e7f3ff; padding: 10px; border-left: 4px solid #0066cc; margin: 10px 0; font-style: italic; }
+        .weather-icon { vertical-align: middle; margin-right: 5px; }
+    </style>
+</head>
+<body>""")
+
+html_parts.append(f'<div class="header">📅 {tomorrow.strftime("%Y年%m月%d日")} {CITY} 天气预报 🌤️</div>')
+
+# 异常天气预警（突出显示）
+if extreme_weather:
+    html_parts.append('<div class="warning">⚠️ <strong>【降雨预警】</strong> 🌧️')
+    for ew in extreme_weather:
+        if "rain_volume" in ew:
+            rain_info = f" 降雨量{ew['rain_volume']:.1f}mm" if ew['rain_volume'] > 0 else ""
+            html_parts.append(f"<div>⏰ {ew['time']}: {ew['desc']} 降水概率{int(ew['pop']*100)}%{rain_info}</div>")
         else:
-            msg_parts.append(f"{weather_line} | {temp_line}")
-        
-        msg_parts.append("")
+            html_parts.append(f"<div>⏰ {ew['time']}: {ew['desc']}</div>")
+    html_parts.append('</div>')
+
+# 各时段预报（简洁格式）
+period_emojis = {
+    "早上": "🌅",
+    "中午": "☀️",
+    "下午": "🌤️",
+    "晚上": "🌙"
+}
+
+for period_name, period_info in period_weather.items():
+    # 时间段标题（去掉括号）
+    period_title = period_name.split("(")[0].strip()
+    emoji = period_emojis.get(period_title, "📌")
     
-    # 简短提示
-    if rain_expected:
-        msg_parts.append("提示: 明天有降雨，请带伞")
-    elif extreme_weather:
-        msg_parts.append("提示: 明天有极端天气，请注意安全")
+    # 获取天气图标URL
+    icon_code = period_info.get("icon", "01d")
+    icon_url = f"http://openweathermap.org/img/wn/{icon_code}@2x.png"
     
-    # 添加有趣的地理知识（基于日期，每天不同）
+    html_parts.append(f'<div class="period">')
+    html_parts.append(f'<div class="period-title">{emoji} {period_title}</div>')
+    
+    # 根据天气类型选择emoji
+    weather_emoji = "🌤️"  # 默认
+    main_weather = period_info['main_weather']
+    desc = period_info['main_desc']
+    if main_weather in ["Rain", "Thunderstorm", "Drizzle"] or "雨" in desc:
+        weather_emoji = "🌧️"
+    elif main_weather in ["Snow"] or "雪" in desc:
+        weather_emoji = "❄️"
+    elif main_weather in ["Clear"] or "晴" in desc:
+        weather_emoji = "☀️"
+    elif main_weather in ["Clouds"] or "云" in desc:
+        weather_emoji = "☁️"
+    elif main_weather in ["Mist", "Fog", "Haze"] or "雾" in desc or "霾" in desc:
+        weather_emoji = "🌫️"
+    
+    # 关键信息：天气、温度、降水（带图标）
+    weather_line = f'<div class="weather-info">{weather_emoji} <img src="{icon_url}" alt="weather" class="weather-icon" style="width: 50px; height: 50px;"> 天气: {period_info["main_desc"]}</div>'
+    temp_line = f'<div class="weather-info">🌡️ 温度: {period_info["min_temp"]:.0f}~{period_info["max_temp"]:.0f}°C (体感{period_info["avg_feels_like"]:.0f}°C)</div>'
+    
+    if period_info["max_pop"] > 0:
+        rain_line = f'<div class="weather-info">☔ 降水概率: {int(period_info["max_pop"]*100)}%'
+        if period_info["max_rain"] > 0:
+            rain_line += f' 降雨量: {period_info["max_rain"]:.1f}mm'
+        rain_line += '</div>'
+        html_parts.append(weather_line)
+        html_parts.append(temp_line)
+        html_parts.append(rain_line)
+    else:
+        html_parts.append(weather_line)
+        html_parts.append(temp_line)
+    
+    html_parts.append('</div>')
+
+# 简短提示
+if rain_expected:
+    html_parts.append('<div class="tip">💡 <strong>提示:</strong> 明天有降雨，请带伞 ☂️</div>')
+elif extreme_weather:
+    html_parts.append('<div class="tip">💡 <strong>提示:</strong> 明天有极端天气，请注意安全 ⚠️</div>')
+
+# 添加有趣的地理知识（基于日期，每天不同）
+geo_fact = get_geo_fact(tomorrow)
+html_parts.append(f'<div class="fact">🌍 {geo_fact}</div>')
+
+html_parts.append("</body></html>")
+html_msg = "\n".join(html_parts)
+
+# 同时生成纯文本版本（作为备选）
+msg_parts = []
+msg_parts.append(f"📅 {tomorrow.strftime('%Y年%m月%d日')} {CITY} 天气预报 🌤️")
+msg_parts.append("")
+
+if extreme_weather:
+    msg_parts.append("⚠️ 【降雨预警】🌧️")
+    for ew in extreme_weather:
+        if "rain_volume" in ew:
+            rain_info = f" 降雨量{ew['rain_volume']:.1f}mm" if ew['rain_volume'] > 0 else ""
+            msg_parts.append(f"⏰ {ew['time']}: {ew['desc']} 降水概率{int(ew['pop']*100)}%{rain_info}")
+        else:
+            msg_parts.append(f"⏰ {ew['time']}: {ew['desc']}")
     msg_parts.append("")
-    msg_parts.append(" ")
-    geo_fact = get_geo_fact(tomorrow)
-    msg_parts.append(geo_fact)
+
+period_emojis = {
+    "早上": "🌅",
+    "中午": "☀️",
+    "下午": "🌤️",
+    "晚上": "🌙"
+}
+
+for period_name, period_info in period_weather.items():
+    period_title = period_name.split("(")[0].strip()
+    emoji = period_emojis.get(period_title, "📌")
+    msg_parts.append(f"{emoji} {period_title}")
     
-    msg = "\n".join(msg_parts)
+    weather_emoji = "🌤️"
+    main_weather = period_info['main_weather']
+    desc = period_info['main_desc']
+    if main_weather in ["Rain", "Thunderstorm", "Drizzle"] or "雨" in desc:
+        weather_emoji = "🌧️"
+    elif main_weather in ["Snow"] or "雪" in desc:
+        weather_emoji = "❄️"
+    elif main_weather in ["Clear"] or "晴" in desc:
+        weather_emoji = "☀️"
+    elif main_weather in ["Clouds"] or "云" in desc:
+        weather_emoji = "☁️"
+    elif main_weather in ["Mist", "Fog", "Haze"] or "雾" in desc or "霾" in desc:
+        weather_emoji = "🌫️"
+    
+    weather_line = f"{weather_emoji} 天气: {period_info['main_desc']}"
+    temp_line = f"🌡️ 温度: {period_info['min_temp']:.0f}~{period_info['max_temp']:.0f}°C (体感{period_info['avg_feels_like']:.0f}°C)"
+    
+    if period_info["max_pop"] > 0:
+        rain_line = f"☔ 降水概率: {int(period_info['max_pop']*100)}%"
+        if period_info["max_rain"] > 0:
+            rain_line += f" 降雨量: {period_info['max_rain']:.1f}mm"
+        msg_parts.append(f"{weather_line} | {temp_line} | {rain_line}")
+    else:
+        msg_parts.append(f"{weather_line} | {temp_line}")
+    
+    msg_parts.append("")
+
+if rain_expected:
+    msg_parts.append("💡 提示: 明天有降雨，请带伞 ☂️")
+elif extreme_weather:
+    msg_parts.append("💡 提示: 明天有极端天气，请注意安全 ⚠️")
+
+msg_parts.append("")
+msg_parts.append(" ")
+msg_parts.append(f"🌍 {geo_fact}")
+
+msg = "\n".join(msg_parts)
 
 
 # 邮箱推送
@@ -346,8 +460,30 @@ def send_email(subject, body, to_email):
         message["To"] = to_email
         message["Subject"] = subject
         
-        # 添加邮件正文
-        message.attach(MIMEText(body, "plain", "utf-8"))
+        # 添加邮件正文（HTML格式，支持图片）
+        # 如果body是HTML格式，则同时提供HTML和纯文本版本
+        if isinstance(body, tuple):
+            html_body, text_body = body
+        else:
+            # 检查body是否包含HTML标签
+            if "<html>" in body or "<div" in body:
+                # 从HTML中提取纯文本版本（简单处理）
+                import re
+                text_body = re.sub(r'<[^>]+>', '', body).replace('&nbsp;', ' ').strip()
+                html_body = body
+            else:
+                html_body = None
+                text_body = body
+        
+        if html_body:
+            # 创建多部分消息，包含HTML和纯文本版本
+            from email.mime.text import MIMEText
+            part1 = MIMEText(text_body, "plain", "utf-8")
+            part2 = MIMEText(html_body, "html", "utf-8")
+            message.attach(part1)
+            message.attach(part2)
+        else:
+            message.attach(MIMEText(body, "plain", "utf-8"))
         
         # 连接SMTP服务器并发送邮件
         with smtplib.SMTP(smtp_server, smtp_port) as server:
@@ -368,7 +504,7 @@ if recipient_emails_str:
     if recipient_emails:
         print(f"📧 准备发送邮件到 {len(recipient_emails)} 个收件人: {', '.join(recipient_emails)}")
         for email in recipient_emails:
-            send_email("今天小宝要带伞吗？", msg, email)
+            send_email("今天小宝要带伞吗？", (html_msg, msg), email)
         print(f"✅ 已向所有收件人发送邮件")
     else:
         print("❌ 未检测到有效的收件人邮箱")
