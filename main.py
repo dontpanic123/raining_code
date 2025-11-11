@@ -176,6 +176,203 @@ def get_geo_fact(date=None):
     # 基于日期选择知识（所有城市在同一天看到相同的知识）
     return all_facts[selection_hash % len(all_facts)]
 
+def get_solar_term(year, month, day):
+    """计算二十四节气日期（使用近似算法）"""
+    # 二十四节气对应的太阳黄经度数（每个节气相差15度）
+    # 使用简化公式计算每个节气的日期
+    # 基于1900年1月6日小寒的基准日期
+    
+    # 每个节气的大致日期范围（考虑年份差异，每年可能有1-2天偏差）
+    # 格式: (月份, 最小日期, 最大日期)
+    solar_term_dates = {
+        "小寒": (1, 4, 6), "大寒": (1, 19, 21),
+        "立春": (2, 3, 5), "雨水": (2, 18, 20),
+        "惊蛰": (3, 5, 7), "春分": (3, 20, 22),
+        "清明": (4, 4, 6), "谷雨": (4, 19, 21),
+        "立夏": (5, 5, 7), "小满": (5, 20, 22),
+        "芒种": (6, 5, 7), "夏至": (6, 21, 23),
+        "小暑": (7, 6, 8), "大暑": (7, 22, 24),
+        "立秋": (8, 7, 9), "处暑": (8, 22, 24),
+        "白露": (9, 7, 9), "秋分": (9, 22, 24),
+        "寒露": (10, 7, 9), "霜降": (10, 23, 25),
+        "立冬": (11, 7, 9), "小雪": (11, 22, 24),
+        "大雪": (12, 6, 8), "冬至": (12, 21, 23)
+    }
+    
+    # 检查是否是某个节气
+    for term, (term_month, start_day, end_day) in solar_term_dates.items():
+        if month == term_month and start_day <= day <= end_day:
+            return term
+    return None
+
+def calculate_easter(year):
+    """计算复活节日期（使用算法）"""
+    # 使用匿名格里高利历算法计算复活节
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    return datetime.date(year, month, day)
+
+def get_solar_term_info(date=None):
+    """检查是否是二十四节气，并返回简单介绍"""
+    if date is None:
+        date = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
+    elif isinstance(date, datetime.datetime):
+        date = date.date()
+    
+    year = date.year
+    month = date.month
+    day = date.day
+    
+    solar_term = get_solar_term(year, month, day)
+    if solar_term:
+        solar_term_intros = {
+            "立春": "立春是二十四节气之首，标志着春天的开始，万物复苏。",
+            "雨水": "雨水节气，天气回暖，降雨增多，是春耕的好时节。",
+            "惊蛰": "惊蛰时节，春雷始鸣，蛰伏的动物开始苏醒。",
+            "春分": "春分日，昼夜平分，是春季的中分点，也是踏青的好时节。",
+            "清明": "清明时节雨纷纷，是祭祖扫墓和踏青的节日。",
+            "谷雨": "谷雨是春季最后一个节气，雨生百谷，是播种移苗的好时机。",
+            "立夏": "立夏标志着夏季的开始，万物繁茂，气温逐渐升高。",
+            "小满": "小满时节，麦类等夏熟作物籽粒开始饱满，但尚未成熟。",
+            "芒种": "芒种是农忙时节，有芒的麦子快收，有芒的稻子可种。",
+            "夏至": "夏至日，北半球白昼最长，标志着盛夏的到来。",
+            "小暑": "小暑时节，天气开始炎热，但还未到最热的时候。",
+            "大暑": "大暑是一年中最热的节气，要注意防暑降温。",
+            "立秋": "立秋标志着秋季的开始，天气逐渐转凉。",
+            "处暑": "处暑意味着炎热的夏天即将结束，天气开始转凉。",
+            "白露": "白露时节，天气转凉，清晨的露水增多。",
+            "秋分": "秋分日，昼夜平分，是秋季的中分点。",
+            "寒露": "寒露时节，气温更低，露水更冷，即将凝结成霜。",
+            "霜降": "霜降是秋季最后一个节气，天气渐冷，开始降霜。",
+            "立冬": "立冬标志着冬季的开始，万物收藏，准备过冬。",
+            "小雪": "小雪时节，天气寒冷，开始降雪，但雪量不大。",
+            "大雪": "大雪时节，降雪量增多，天气更加寒冷。",
+            "冬至": "冬至日，北半球白昼最短，标志着数九寒天的开始。",
+            "小寒": "小寒时节，天气寒冷，但还未到最冷的时候。",
+            "大寒": "大寒是一年中最冷的节气，也是冬季的最后一个节气。"
+        }
+        return f"{solar_term}节气 - {solar_term_intros.get(solar_term, '')}"
+    return None
+
+def get_chinese_festival_info(date=None):
+    """检查是否是中国节日，并返回简单介绍"""
+    if date is None:
+        date = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
+    elif isinstance(date, datetime.datetime):
+        date = date.date()
+    
+    month = date.month
+    day = date.day
+    month_day = (month, day)
+    
+    chinese_festivals = {
+        (1, 1): ("元旦", "元旦是新年的第一天，标志着新一年的开始。"),
+        (2, 14): ("情人节", "情人节是表达爱意的日子，也是浪漫的节日。"),
+        (3, 8): ("国际妇女节", "国际妇女节是庆祝女性成就和争取平等权利的节日。"),
+        (3, 12): ("植树节", "植树节是倡导植树造林、保护环境的节日。"),
+        (4, 1): ("愚人节", "愚人节是西方的传统节日，人们可以互相开玩笑。"),
+        (5, 1): ("劳动节", "劳动节是全世界劳动人民共同拥有的节日，庆祝劳动者的贡献。"),
+        (5, 4): ("青年节", "五四青年节是纪念1919年五四运动的节日。"),
+        (6, 1): ("儿童节", "国际儿童节是保障儿童权益、庆祝儿童成长的节日。"),
+        (7, 1): ("建党节", "中国共产党建党节，纪念中国共产党的成立。"),
+        (8, 1): ("建军节", "中国人民解放军建军节，纪念人民军队的建立。"),
+        (9, 10): ("教师节", "教师节是感谢教师为教育事业做出贡献的节日。"),
+        (10, 1): ("国庆节", "中华人民共和国国庆节，庆祝新中国的成立。"),
+        (12, 25): ("圣诞节", "圣诞节是西方传统节日，庆祝耶稣基督的诞生。"),
+    }
+    
+    if month_day in chinese_festivals:
+        name, intro = chinese_festivals[month_day]
+        return f"中国节日：{name} - {intro}"
+    return None
+
+def get_german_festival_info(date=None):
+    """检查是否是德国节日，并返回简单介绍"""
+    if date is None:
+        date = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
+    elif isinstance(date, datetime.datetime):
+        date = date.date()
+    
+    year = date.year
+    month = date.month
+    day = date.day
+    month_day = (month, day)
+    
+    easter = calculate_easter(year)
+    german_festivals = {
+        (1, 1): ("新年", "Neujahr - 德国的新年，是公共假日。"),
+        (1, 6): ("主显节", "Heilige Drei Könige - 在巴伐利亚等州是公共假日。"),
+        (5, 1): ("劳动节", "Tag der Arbeit - 德国的劳动节，是公共假日。"),
+        (10, 3): ("德国统一日", "Tag der Deutschen Einheit - 庆祝1990年东西德统一，是公共假日。"),
+        (11, 1): ("万圣节", "Allerheiligen - 在天主教州是公共假日。"),
+        (12, 25): ("圣诞节", "Weihnachten - 德国最重要的节日之一，是公共假日。"),
+        (12, 26): ("节礼日", "Zweiter Weihnachtsfeiertag - 圣诞节的第二天，是公共假日。"),
+    }
+    
+    # 基于复活节的德国节日
+    easter_friday = easter - datetime.timedelta(days=2)  # 耶稣受难日
+    easter_monday = easter + datetime.timedelta(days=1)  # 复活节星期一
+    ascension = easter + datetime.timedelta(days=39)  # 耶稣升天节
+    whit_monday = easter + datetime.timedelta(days=50)  # 圣灵降临节星期一
+    corpus_christi = easter + datetime.timedelta(days=60)  # 基督圣体节
+    
+    if date == easter_friday:
+        return "德国节日：耶稣受难日（Karfreitag） - 这是复活节前的星期五，是公共假日。"
+    elif date == easter:
+        return "德国节日：复活节（Ostern） - 这是基督教最重要的节日之一，是公共假日。"
+    elif date == easter_monday:
+        return "德国节日：复活节星期一（Ostermontag） - 这是复活节的第二天，是公共假日。"
+    elif date == ascension:
+        return "德国节日：耶稣升天节（Christi Himmelfahrt） - 复活节后第40天，是公共假日。"
+    elif date == whit_monday:
+        return "德国节日：圣灵降临节星期一（Pfingstmontag） - 复活节后第50天，是公共假日。"
+    elif date == corpus_christi:
+        return "德国节日：基督圣体节（Fronleichnam） - 在天主教州是公共假日。"
+    elif month_day in german_festivals:
+        name, intro = german_festivals[month_day]
+        return f"德国节日：{name} - {intro}"
+    return None
+
+def get_australian_festival_info(date=None):
+    """检查是否是澳大利亚节日，并返回简单介绍"""
+    if date is None:
+        date = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
+    elif isinstance(date, datetime.datetime):
+        date = date.date()
+    
+    month = date.month
+    day = date.day
+    month_day = (month, day)
+    
+    australian_festivals = {
+        (1, 1): ("新年", "New Year's Day - 澳大利亚的新年，是公共假日。"),
+        (1, 26): ("澳大利亚日", "Australia Day - 庆祝1788年第一批欧洲移民抵达澳大利亚，是公共假日。"),
+        (3, 8): ("国际妇女节", "International Women's Day - 庆祝女性成就的节日。"),
+        (4, 25): ("澳新军团日", "ANZAC Day - 纪念第一次世界大战中澳新军团的牺牲，是公共假日。"),
+        (5, 1): ("劳动节", "Labour Day - 在部分州是公共假日。"),
+        (6, 8): ("女王生日", "Queen's Birthday - 在部分州是公共假日（日期可能因州而异）。"),
+        (10, 1): ("劳动节", "Labour Day - 在部分州是公共假日。"),
+        (12, 25): ("圣诞节", "Christmas Day - 澳大利亚的圣诞节，是公共假日。"),
+        (12, 26): ("节礼日", "Boxing Day - 圣诞节的第二天，是公共假日。"),
+    }
+    
+    if month_day in australian_festivals:
+        name, intro = australian_festivals[month_day]
+        return f"澳大利亚节日：{name} - {intro}"
+    return None
+
 # 请求天气
 url = f"http://api.openweathermap.org/data/2.5/forecast?q={CITY}&appid={API_KEY}&lang=zh_cn&units=metric"
 res = requests.get(url).json()
@@ -290,12 +487,36 @@ html_parts.append("""<!DOCTYPE html>
         .weather-info { margin: 5px 0; }
         .tip { background-color: #d1ecf1; padding: 10px; border-left: 4px solid #0c5460; margin: 10px 0; }
         .fact { background-color: #e7f3ff; padding: 10px; border-left: 4px solid #0066cc; margin: 10px 0; font-style: italic; }
-        .weather-icon { vertical-align: middle; margin-right: 5px; }
     </style>
 </head>
 <body>""")
 
-html_parts.append(f'<div class="header">📅 {tomorrow.strftime("%Y年%m月%d日")} {CITY} 天气预报 🌤️</div>')
+# 检查节日和节气信息，依次检查：节气、中国节日、德国节日、澳大利亚节日
+festival_infos = []
+solar_term_info = get_solar_term_info(tomorrow)
+if solar_term_info:
+    festival_infos.append(solar_term_info)
+
+chinese_festival_info = get_chinese_festival_info(tomorrow)
+if chinese_festival_info:
+    festival_infos.append(chinese_festival_info)
+
+german_festival_info = get_german_festival_info(tomorrow)
+if german_festival_info:
+    festival_infos.append(german_festival_info)
+
+australian_festival_info = get_australian_festival_info(tomorrow)
+if australian_festival_info:
+    festival_infos.append(australian_festival_info)
+
+# 构建标题行
+header_title = f'📅 {tomorrow.strftime("%Y年%m月%d日")} {CITY} 天气预报 🌤️'
+if festival_infos:
+    # 如果有节日信息，用分隔符连接并添加到标题中
+    festival_text = ' | '.join(festival_infos)
+    header_title = f'{header_title}<br><span style="font-size: 14px; color: #666; font-weight: normal;">{festival_text}</span>'
+
+html_parts.append(f'<div class="header">{header_title}</div>')
 
 # 异常天气预警（突出显示）
 if extreme_weather:
@@ -321,10 +542,6 @@ for period_name, period_info in period_weather.items():
     period_title = period_name.split("(")[0].strip()
     emoji = period_emojis.get(period_title, "📌")
     
-    # 获取天气图标URL
-    icon_code = period_info.get("icon", "01d")
-    icon_url = f"http://openweathermap.org/img/wn/{icon_code}@2x.png"
-    
     html_parts.append(f'<div class="period">')
     html_parts.append(f'<div class="period-title">{emoji} {period_title}</div>')
     
@@ -344,7 +561,7 @@ for period_name, period_info in period_weather.items():
         weather_emoji = "🌫️"
     
     # 关键信息：天气、温度、降水（带图标）
-    weather_line = f'<div class="weather-info">{weather_emoji} <img src="{icon_url}" alt="weather" class="weather-icon" style="width: 50px; height: 50px;"> 天气: {period_info["main_desc"]}</div>'
+    weather_line = f'<div class="weather-info">{weather_emoji} 天气: {period_info["main_desc"]}</div>'
     temp_line = f'<div class="weather-info">🌡️ 温度: {period_info["min_temp"]:.0f}~{period_info["max_temp"]:.0f}°C (体感{period_info["avg_feels_like"]:.0f}°C)</div>'
     
     if period_info["max_pop"] > 0:
@@ -377,6 +594,9 @@ html_msg = "\n".join(html_parts)
 # 同时生成纯文本版本（作为备选）
 msg_parts = []
 msg_parts.append(f"📅 {tomorrow.strftime('%Y年%m月%d日')} {CITY} 天气预报 🌤️")
+# 在纯文本版本中也添加节日信息（使用之前检查的结果）
+if festival_infos:
+    msg_parts.append(' | '.join(festival_infos))
 msg_parts.append("")
 
 if extreme_weather:
