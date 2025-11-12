@@ -591,74 +591,6 @@ html_parts.append(f'<div class="fact">🌍 {geo_fact}</div>')
 html_parts.append("</body></html>")
 html_msg = "\n".join(html_parts)
 
-# 同时生成纯文本版本（作为备选）
-msg_parts = []
-msg_parts.append(f"📅 {tomorrow.strftime('%Y年%m月%d日')} {CITY} 天气预报 🌤️")
-# 在纯文本版本中也添加节日信息（使用之前检查的结果）
-if festival_infos:
-    msg_parts.append(' | '.join(festival_infos))
-msg_parts.append("")
-
-if extreme_weather:
-    msg_parts.append("⚠️ 【降雨预警】🌧️")
-    for ew in extreme_weather:
-        if "rain_volume" in ew:
-            rain_info = f" 降雨量{ew['rain_volume']:.1f}mm" if ew['rain_volume'] > 0 else ""
-            msg_parts.append(f"⏰ {ew['time']}: {ew['desc']} 降水概率{int(ew['pop']*100)}%{rain_info}")
-        else:
-            msg_parts.append(f"⏰ {ew['time']}: {ew['desc']}")
-    msg_parts.append("")
-
-period_emojis = {
-    "早上": "🌅",
-    "中午": "☀️",
-    "下午": "🌤️",
-    "晚上": "🌙"
-}
-
-for period_name, period_info in period_weather.items():
-    period_title = period_name.split("(")[0].strip()
-    emoji = period_emojis.get(period_title, "📌")
-    msg_parts.append(f"{emoji} {period_title}")
-    
-    weather_emoji = "🌤️"
-    main_weather = period_info['main_weather']
-    desc = period_info['main_desc']
-    if main_weather in ["Rain", "Thunderstorm", "Drizzle"] or "雨" in desc:
-        weather_emoji = "🌧️"
-    elif main_weather in ["Snow"] or "雪" in desc:
-        weather_emoji = "❄️"
-    elif main_weather in ["Clear"] or "晴" in desc:
-        weather_emoji = "☀️"
-    elif main_weather in ["Clouds"] or "云" in desc:
-        weather_emoji = "☁️"
-    elif main_weather in ["Mist", "Fog", "Haze"] or "雾" in desc or "霾" in desc:
-        weather_emoji = "🌫️"
-    
-    weather_line = f"{weather_emoji} 天气: {period_info['main_desc']}"
-    temp_line = f"🌡️ 温度: {period_info['min_temp']:.0f}~{period_info['max_temp']:.0f}°C (体感{period_info['avg_feels_like']:.0f}°C)"
-    
-    if period_info["max_pop"] > 0:
-        rain_line = f"☔ 降水概率: {int(period_info['max_pop']*100)}%"
-        if period_info["max_rain"] > 0:
-            rain_line += f" 降雨量: {period_info['max_rain']:.1f}mm"
-        msg_parts.append(f"{weather_line} | {temp_line} | {rain_line}")
-    else:
-        msg_parts.append(f"{weather_line} | {temp_line}")
-    
-    msg_parts.append("")
-
-if rain_expected:
-    msg_parts.append("💡 提示: 明天有降雨，请带伞 ☂️")
-elif extreme_weather:
-    msg_parts.append("💡 提示: 明天有极端天气，请注意安全 ⚠️")
-
-msg_parts.append("")
-msg_parts.append(" ")
-msg_parts.append(f"🌍 {geo_fact}")
-
-msg = "\n".join(msg_parts)
-
 
 # 邮箱推送
 def send_email(subject, body, to_email):
@@ -680,23 +612,14 @@ def send_email(subject, body, to_email):
         message["To"] = to_email
         message["Subject"] = subject
         
-        # 添加邮件正文（HTML格式，支持图片）
-        # 如果body是HTML格式，则同时提供HTML和纯文本版本
-        if isinstance(body, tuple):
-            html_body, text_body = body
-        else:
-            # 检查body是否包含HTML标签
-            if "<html>" in body or "<div" in body:
-                # 从HTML中提取纯文本版本（简单处理）
-                import re
-                text_body = re.sub(r'<[^>]+>', '', body).replace('&nbsp;', ' ').strip()
-                html_body = body
-            else:
-                html_body = None
-                text_body = body
-        
-        if html_body:
-            # 创建多部分消息，包含HTML和纯文本版本
+        # 添加邮件正文（HTML格式）
+        # 检查body是否包含HTML标签
+        if "<html>" in body or "<div" in body:
+            # 从HTML中提取纯文本版本作为备选（简单处理）
+            import re
+            text_body = re.sub(r'<[^>]+>', '', body).replace('&nbsp;', ' ').strip()
+            html_body = body
+            # 创建多部分消息，包含HTML和纯文本版本（纯文本仅作为备选）
             from email.mime.text import MIMEText
             part1 = MIMEText(text_body, "plain", "utf-8")
             part2 = MIMEText(html_body, "html", "utf-8")
@@ -724,7 +647,7 @@ if recipient_emails_str:
     if recipient_emails:
         print(f"📧 准备发送邮件到 {len(recipient_emails)} 个收件人: {', '.join(recipient_emails)}")
         for email in recipient_emails:
-            send_email("今天小宝要带伞吗？", (html_msg, msg), email)
+            send_email("今天小宝要带伞吗？", html_msg, email)
         print(f"✅ 已向所有收件人发送邮件")
     else:
         print("❌ 未检测到有效的收件人邮箱")
