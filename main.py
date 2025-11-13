@@ -1,6 +1,7 @@
 import os, requests, datetime, smtplib, hashlib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.header import Header
 
 API_KEY = os.getenv("OPENWEATHER_KEY")  # OpenWeather API Key
 CITY = os.getenv("CITY", "Sydney")  # 城市名称，默认悉尼
@@ -610,22 +611,18 @@ def send_email(subject, body, to_email):
         message = MIMEMultipart()
         message["From"] = sender_email
         message["To"] = to_email
-        message["Subject"] = subject
+        # 确保邮件主题使用UTF-8编码，避免乱码
+        message["Subject"] = Header(subject, "utf-8")
         
-        # 添加邮件正文（HTML格式）
+        # 添加邮件正文（只发送HTML版本，不发送纯文本）
         # 检查body是否包含HTML标签
         if "<html>" in body or "<div" in body:
-            # 从HTML中提取纯文本版本作为备选（简单处理）
-            import re
-            text_body = re.sub(r'<[^>]+>', '', body).replace('&nbsp;', ' ').strip()
+            # 只发送HTML版本，确保UTF-8编码
             html_body = body
-            # 创建多部分消息，包含HTML和纯文本版本（纯文本仅作为备选）
-            from email.mime.text import MIMEText
-            part1 = MIMEText(text_body, "plain", "utf-8")
-            part2 = MIMEText(html_body, "html", "utf-8")
-            message.attach(part1)
-            message.attach(part2)
+            html_part = MIMEText(html_body, "html", "utf-8")
+            message.attach(html_part)
         else:
+            # 如果不是HTML，发送纯文本（UTF-8编码）
             message.attach(MIMEText(body, "plain", "utf-8"))
         
         # 连接SMTP服务器并发送邮件
