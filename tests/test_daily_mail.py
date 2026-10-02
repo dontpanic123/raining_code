@@ -99,6 +99,41 @@ class DailyMailTests(unittest.TestCase):
             main.send_email('主题', '<html></html>', '签语', ['a@example.com', 'b@example.com'])
         self.assertEqual(send.call_count, 2)
 
+    @patch('main.send_email')
+    @patch('main.get_daily_fortune', return_value=(fallback_fortune(), True))
+    @patch('main.prepare_weather')
+    @patch('main.fetch_weather')
+    def test_multiple_cities_share_one_email(self, fetch, prepare, fortune, send):
+        os.environ.update(CITY='Sydney,Berlin', CITY_TIMEZONE='Australia/Sydney,Europe/Berlin',
+                          SENDER_EMAIL='sender@example.com', SENDER_PASSWORD='test',
+                          RECIPIENT_EMAIL='a@example.com')
+        prepare.return_value = (self.date, {}, False, [])
+        with patch('sys.argv', ['main.py']):
+            main.main()
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(prepare.call_args_list[1].kwargs['timezone_name'], 'Europe/Berlin')
+        self.assertEqual(fortune.call_count, 2)
+        send.assert_called_once()
+        html = send.call_args.args[1]
+        self.assertEqual(html.count('<html'), 1)
+        self.assertEqual(html.count('<body'), 1)
+        self.assertIn('Sydney', html)
+        self.assertIn('Berlin', html)
+
+    @patch('main.send_email')
+    @patch('main.get_daily_fortune', return_value=(fallback_fortune(), False))
+    @patch('main.prepare_weather')
+    @patch('main.fetch_weather', side_effect=[ValueError(), {}])
+    def test_one_city_failure_still_sends_other_city(self, fetch, prepare, fortune, send):
+        os.environ.update(CITY='Sydney,Berlin', SENDER_EMAIL='sender@example.com',
+                          SENDER_PASSWORD='test', RECIPIENT_EMAIL='a@example.com')
+        prepare.return_value = (self.date, {}, False, [])
+        with patch('sys.argv', ['main.py']), self.assertRaises(RuntimeError):
+            main.main()
+        send.assert_called_once()
+        self.assertIn('部分城市天气暂不可用', send.call_args.args[1])
+        self.assertIn('Berlin', send.call_args.args[1])
+
 
 if __name__ == '__main__':
     unittest.main()

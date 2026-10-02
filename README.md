@@ -39,3 +39,8 @@ python -m unittest discover -s tests -v
 实际工作流是 `.github/workflows/main.yml`，每天 UTC 09:00 运行，支持手动触发。`workflows/weather.yml` 仅作为同步示例。配置见 [部署指南](github_actions_setup.md)。Actions 缓存成功的签语；缓存被淘汰或并发首次运行时可能重新生成，邮件发送本身不做去重。
 
 API 实现依据 [OpenAI Structured Outputs 官方文档](https://developers.openai.com/api/docs/guides/structured-outputs)。
+
+## 多城市
+
+保留多城市合并邮件：`CITY=Sydney,Berlin`。每个城市使用当地的明日日期，分别生成签语和天气卡片，合并到一封邮件。
+`CITY_TIMEZONE` 可留空（逐城市使用天气接口偏移），或按相同顺序配置 `Australia/Sydney,Europe/Berlin`。单个城市获取失败时仍发送其余城市，邮件标注缺失，工作流报告失败。

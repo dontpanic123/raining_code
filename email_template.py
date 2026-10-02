@@ -59,3 +59,19 @@ def render_email(date, city, periods, rain, extreme, fortune, generated, festiva
 <tr><td align="center" style="padding:18px 20px;border-top:1px solid #eeeae3;font-size:10px;letter-spacing:1px;color:#96958c;">{e(note)}</td></tr>
 </table></td></tr></table></body></html>'''
     return html, plain
+
+
+def combine_emails(emails, failed=0):
+    """Combine city cards into one valid HTML document and one plain text body."""
+    import re
+    bodies = [re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL).group(1)
+              for html, _ in emails]
+    notice = "部分城市天气暂不可用，以下为已获取的预报。" if failed else ""
+    html = ('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            '<title>明日签与天气</title></head>'
+            '<body style="margin:0;background-color:#f3f1ec;color:#383c36;'
+            'font-family:Arial,Microsoft YaHei,sans-serif;">'
+            + (f'<p style="text-align:center;font-size:13px;">{notice}</p>' if notice else '')
+            + ''.join(bodies) + '</body></html>')
+    return html, (notice + "\n" if notice else "") + "\n\n".join(plain for _, plain in emails)

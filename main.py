@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 from daily_fortune import get_daily_fortune
-from email_template import render_email
+from email_template import render_email, combine_emails
 
 def get_solar_term(year, month, day):
     """计算二十四节气日期（使用近似算法）"""
@@ -210,8 +210,9 @@ def get_australian_festival_info(date=None):
         return f"澳大利亚节日：{name} - {intro}"
     return None
 
-def prepare_weather(res, now=None):
-    timezone_name = os.getenv("CITY_TIMEZONE")
+def prepare_weather(res, now=None, timezone_name=None):
+    if timezone_name is None:
+        timezone_name = os.getenv("CITY_TIMEZONE")
     tz = (ZoneInfo(timezone_name) if timezone_name else
           datetime.timezone(datetime.timedelta(seconds=res["city"]["timezone"])))
     now = now or datetime.datetime.now(datetime.timezone.utc)
@@ -373,16 +374,34 @@ def main():
     recipients = [v.strip() for v in (os.getenv("RECIPIENT_EMAIL") or "").split(",") if v.strip()]
     if not recipients or not os.getenv("SENDER_EMAIL") or not os.getenv("SENDER_PASSWORD"):
         raise ValueError("请先配置发件邮箱、密码和收件人")
-    date, periods, rain, extreme = prepare_weather(fetch_weather(city))
-    summary = [{"period": name, "weather": p["main_desc"], "min_c": p["min_temp"],
-                "max_c": p["max_temp"], "rain_probability": p["max_pop"]}
-               for name, p in periods.items()]
-    fortune, generated = get_daily_fortune(date, city, summary)
-    festivals = [info for fn in (get_solar_term_info, get_chinese_festival_info,
-                                 get_german_festival_info, get_australian_festival_info)
-                 if (info := fn(date))]
-    html, plain = render_email(date, city, periods, rain, extreme, fortune, generated, festivals)
-    send_email(f"明日签 · {fortune['title']} | {city} {date:%m月%d日}", html, plain, recipients)
+    cities = list(dict.fromkeys(c.strip() for c in city.split(",") if c.strip())) or ["Sydney"]
+    zones = [z.strip() for z in (os.getenv("CITY_TIMEZONE") or "").split(",")]
+    if any(zones) and len(zones) != len(cities):
+        raise ValueError("CITY_TIMEZONE 必须与 CITY 的城市数量及顺序一致")
+    emails, failed = [], 0
+    for index, city_name in enumerate(cities):
+        try:
+            date, periods, rain, extreme = prepare_weather(
+                fetch_weather(city_name), timezone_name=zones[index] if any(zones) else "")
+        except (requests.RequestException, ValueError, KeyError):
+            logging.error("一个城市的天气获取失败，继续处理其余城市。")
+            failed += 1
+            continue
+        summary = [{"period": name, "weather": p["main_desc"], "min_c": p["min_temp"],
+                    "max_c": p["max_temp"], "rain_probability": p["max_pop"]}
+                   for name, p in periods.items()]
+        fortune, generated = get_daily_fortune(date, city_name, summary)
+        festivals = [info for fn in (get_solar_term_info, get_chinese_festival_info,
+                                     get_german_festival_info, get_australian_festival_info)
+                     if (info := fn(date))]
+        emails.append(render_email(date, city_name, periods, rain, extreme, fortune, generated, festivals))
+    if not emails:
+        raise ValueError("没有可发送的城市天气")
+    html, plain = combine_emails(emails, failed)
+    send_email("明日签与天气 | " + " · ".join(cities), html, plain, recipients)
+    if failed:
+        raise RuntimeError("已发送部分城市预报，但有城市天气获取失败")
+
 
 
 if __name__ == "__main__":

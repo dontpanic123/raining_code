@@ -3,8 +3,10 @@ OPENWEATHER_KEY=your_openweather_api_key
 OPENAI_API_KEY=your_openai_api_key
 # 可选；使用支持 Structured Outputs 的模型
 OPENAI_MODEL=gpt-4o-mini
+# 多城市示例：Sydney,Berlin
 CITY=Sydney
 # 推荐配置 IANA 时区，以正确处理夏令时；留空时使用天气API返回的UTC偏移。
+# 多城市时按相同顺序填写：Australia/Sydney,Europe/Berlin
 CITY_TIMEZONE=Australia/Sydney
 SENDER_EMAIL=sender@example.com
 SENDER_PASSWORD=your_app_password
