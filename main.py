@@ -1,188 +1,24 @@
-import os, requests, datetime, smtplib, hashlib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.header import Header
+"""Daily weather and AI fortune email. Importing this module has no side effects."""
+import argparse
+import datetime
+import logging
+import os
+import smtplib
+import ssl
+from email.message import EmailMessage
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
-API_KEY = os.getenv("OPENWEATHER_KEY")  # OpenWeather API Key
-CITY = os.getenv("CITY", "Sydney")  # 城市名称，默认悉尼
-
-def get_geo_fact(date=None):
-    """根据日期返回有趣的地理知识（每天不同，所有城市看到相同的知识）"""
-    city_facts_list = {
-        "Sydney": [
-            "悉尼歌剧院的设计灵感来自于切开的橘子瓣，而不是帆船。",
-            "悉尼拥有超过100个海滩，是世界上拥有最多海滩的城市之一。",
-            "悉尼海港大桥的钢铁用量可以建造1万辆汽车。",
-        ],
-        "北京": [
-            "北京是全世界唯一既举办过夏季奥运会又举办过冬季奥运会的城市。",
-            "北京紫禁城有9999间半的房间，因为古代皇帝认为天上有一万间房。",
-            "北京的中轴线长达7.8公里，是世界上现存最长的城市中轴线。",
-        ],
-        "Beijing": [
-            "北京是全世界唯一既举办过夏季奥运会又举办过冬季奥运会的城市。",
-            "北京紫禁城有9999间半的房间，因为古代皇帝认为天上有一万间房。",
-            "北京的中轴线长达7.8公里，是世界上现存最长的城市中轴线。",
-        ],
-        "上海": [
-            "上海的黄浦江实际上是一条河，而非真正的江。",
-            "上海拥有世界上最高的酒店——上海中心J酒店，高度632米。",
-            "上海地铁网络是世界上里程最长的地铁系统之一，总长超过800公里。",
-        ],
-        "Shanghai": [
-            "上海的黄浦江实际上是一条河，而非真正的江。",
-            "上海拥有世界上最高的酒店——上海中心J酒店，高度632米。",
-            "上海地铁网络是世界上里程最长的地铁系统之一，总长超过800公里。",
-        ],
-        "深圳": [
-            "深圳在40年前还是一个小渔村，现在已成为拥有1700万人口的超大城市。",
-            "深圳是中国第一个经济特区，被誉为'中国硅谷'。",
-            "深圳拥有超过200座摩天大楼，密度居世界前列。",
-        ],
-        "Shenzhen": [
-            "深圳在40年前还是一个小渔村，现在已成为拥有1700万人口的超大城市。",
-            "深圳是中国第一个经济特区，被誉为'中国硅谷'。",
-            "深圳拥有超过200座摩天大楼，密度居世界前列。",
-        ],
-        "广州": [
-            "广州是海上丝绸之路的起点之一，有2000多年的对外贸易历史。",
-            "广州的早茶文化被联合国教科文组织列为非物质文化遗产。",
-            "广州塔（小蛮腰）高600米，是世界上最高的电视塔之一。",
-        ],
-        "Guangzhou": [
-            "广州是海上丝绸之路的起点之一，有2000多年的对外贸易历史。",
-            "广州的早茶文化被联合国教科文组织列为非物质文化遗产。",
-            "广州塔（小蛮腰）高600米，是世界上最高的电视塔之一。",
-        ],
-        "杭州": [
-            "西湖的苏堤和白堤分别是以两位著名诗人苏东坡和白居易的名字命名的。",
-            "杭州被誉为'人间天堂'，马可波罗曾称赞它为世界上最美丽华贵的城市。",
-            "杭州龙井茶是中国十大名茶之首，已有1200多年历史。",
-        ],
-        "Hangzhou": [
-            "西湖的苏堤和白堤分别是以两位著名诗人苏东坡和白居易的名字命名的。",
-            "杭州被誉为'人间天堂'，马可波罗曾称赞它为世界上最美丽华贵的城市。",
-            "杭州龙井茶是中国十大名茶之首，已有1200多年历史。",
-        ],
-        "成都": [
-            "成都是大熊猫的故乡，也是全世界唯一一个在城市中心设立大熊猫繁育基地的城市。",
-            "成都拥有超过2300年的建城史，是中国历史文化名城之一。",
-            "成都的川菜是中国四大菜系之一，'吃在中国，味在四川'。",
-        ],
-        "Chengdu": [
-            "成都是大熊猫的故乡，也是全世界唯一一个在城市中心设立大熊猫繁育基地的城市。",
-            "成都拥有超过2300年的建城史，是中国历史文化名城之一。",
-            "成都的川菜是中国四大菜系之一，'吃在中国，味在四川'。",
-        ],
-        "纽约": [
-            "纽约的中央公园占地341公顷，比摩纳哥公国还大。",
-            "纽约每年接待超过6000万游客，是世界上游客最多的城市之一。",
-            "纽约的帝国大厦在1931年建成时是世界第一高楼，这一记录保持了40年。",
-        ],
-        "New York": [
-            "纽约的中央公园占地341公顷，比摩纳哥公国还大。",
-            "纽约每年接待超过6000万游客，是世界上游客最多的城市之一。",
-            "纽约的帝国大厦在1931年建成时是世界第一高楼，这一记录保持了40年。",
-        ],
-        "伦敦": [
-            "伦敦的地铁系统是世界上最古老的地铁系统，1863年就开始运营了。",
-            "伦敦有170多种语言在使用，是世界上语言最多样化的城市。",
-            "伦敦的大本钟实际上是指钟楼，钟本身叫'大本钟'（Big Ben），但人们常用这个名字指代整个钟楼。",
-        ],
-        "London": [
-            "伦敦的地铁系统是世界上最古老的地铁系统，1863年就开始运营了。",
-            "伦敦有170多种语言在使用，是世界上语言最多样化的城市。",
-            "伦敦的大本钟实际上是指钟楼，钟本身叫'大本钟'（Big Ben），但人们常用这个名字指代整个钟楼。",
-        ],
-        "东京": [
-            "东京是世界上人口最密集的大都市区，但同时也是犯罪率最低的城市之一。",
-            "东京拥有世界上最复杂的地铁系统，超过280个车站。",
-            "东京的银座是世界上最昂贵的地段之一，每平方米售价可达数十万美元。",
-        ],
-        "Tokyo": [
-            "东京是世界上人口最密集的大都市区，但同时也是犯罪率最低的城市之一。",
-            "东京拥有世界上最复杂的地铁系统，超过280个车站。",
-            "东京的银座是世界上最昂贵的地段之一，每平方米售价可达数十万美元。",
-        ],
-        "巴黎": [
-            "埃菲尔铁塔在建造时曾经被很多艺术家和知识分子反对，认为它破坏了巴黎的美景。",
-            "巴黎的地下墓穴有超过600万具骸骨，总长度超过300公里。",
-            "巴黎卢浮宫是世界上参观人数最多的博物馆，每年接待超过1000万游客。",
-        ],
-        "Paris": [
-            "埃菲尔铁塔在建造时曾经被很多艺术家和知识分子反对，认为它破坏了巴黎的美景。",
-            "巴黎的地下墓穴有超过600万具骸骨，总长度超过300公里。",
-            "巴黎卢浮宫是世界上参观人数最多的博物馆，每年接待超过1000万游客。",
-        ],
-        "柏林": [
-            "柏林拥有比威尼斯更多的桥梁，约有1700座。",
-            "柏林墙倒塌时留下的碎片被作为纪念品出售，至今仍在流通。",
-            "柏林是欧洲最大的城市之一，面积约892平方公里。",
-        ],
-        "Berlin": [
-            "柏林拥有比威尼斯更多的桥梁，约有1700座。",
-            "柏林墙倒塌时留下的碎片被作为纪念品出售，至今仍在流通。",
-            "柏林是欧洲最大的城市之一，面积约892平方公里。",
-        ],
-        "墨尔本": [
-            "墨尔本连续多年被评为全球最宜居城市，有'澳大利亚的文化之都'之称。",
-            "墨尔本有世界上最多的电车轨道系统，总长超过250公里。",
-            "墨尔本的咖啡文化非常发达，据说每100米就有一家咖啡馆。",
-        ],
-        "Melbourne": [
-            "墨尔本连续多年被评为全球最宜居城市，有'澳大利亚的文化之都'之称。",
-            "墨尔本有世界上最多的电车轨道系统，总长超过250公里。",
-            "墨尔本的咖啡文化非常发达，据说每100米就有一家咖啡馆。",
-        ],
-    }
-    
-    # 通用地理知识（如果找不到对应城市）
-    general_facts = [
-        "地球上有约200个国家，但只有23个国家的国界线是完全笔直的。",
-        "世界上最长的山脉不是在地面上，而是在海底——大西洋中脊全长约16000公里。",
-        "地球上最干燥的地方不是撒哈拉沙漠，而是南极洲的麦克默多干谷，那里已经有200万年没有下雨了。",
-        "澳大利亚是世界上唯一一个国土覆盖整个大陆的国家。",
-        "如果你把地球上的所有冰都融化，海平面会上升约70米。",
-        "地球自转速度正在减慢，每天的时长每100年增加约1.7毫秒。",
-        "太平洋的面积比地球上所有陆地面积加起来还要大。",
-        "珠穆朗玛峰每年都在长高，大约每年增长4毫米。",
-        "死海的海拔是负424米，是地球上最低的陆地表面。",
-        "地球上约有71%的表面被水覆盖，但淡水资源只占全球水量的约2.5%。",
-    ]
-    
-    # 合并所有知识到一个列表中（每天轮换显示，不区分城市）
-    all_facts = []
-    
-    # 添加所有城市的知识（去重）
-    unique_city_facts = set()
-    for city_key, facts_list in city_facts_list.items():
-        for fact in facts_list:
-            unique_city_facts.add(fact)
-    
-    # 添加城市知识和通用知识
-    all_facts.extend(unique_city_facts)
-    all_facts.extend(general_facts)
-    
-    # 确定选择的索引（纯粹基于日期，不依赖城市名）
-    if date:
-        # 使用日期的年月日来计算索引
-        date_str = date.strftime("%Y%m%d") if hasattr(date, 'strftime') else str(date)
-        selection_hash = int(hashlib.md5(date_str.encode()).hexdigest(), 16)
-    else:
-        # 如果没有提供日期，使用当前日期
-        today = datetime.date.today()
-        date_str = today.strftime("%Y%m%d")
-        selection_hash = int(hashlib.md5(date_str.encode()).hexdigest(), 16)
-    
-    # 基于日期选择知识（所有城市在同一天看到相同的知识）
-    return all_facts[selection_hash % len(all_facts)]
+import requests
+from daily_fortune import get_daily_fortune
+from email_template import render_email
 
 def get_solar_term(year, month, day):
     """计算二十四节气日期（使用近似算法）"""
     # 二十四节气对应的太阳黄经度数（每个节气相差15度）
     # 使用简化公式计算每个节气的日期
     # 基于1900年1月6日小寒的基准日期
-    
+
     # 每个节气的大致日期范围（考虑年份差异，每年可能有1-2天偏差）
     # 格式: (月份, 最小日期, 最大日期)
     solar_term_dates = {
@@ -199,7 +35,7 @@ def get_solar_term(year, month, day):
         "立冬": (11, 7, 9), "小雪": (11, 22, 24),
         "大雪": (12, 6, 8), "冬至": (12, 21, 23)
     }
-    
+
     # 检查是否是某个节气
     for term, (term_month, start_day, end_day) in solar_term_dates.items():
         if month == term_month and start_day <= day <= end_day:
@@ -231,11 +67,11 @@ def get_solar_term_info(date=None):
         date = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
     elif isinstance(date, datetime.datetime):
         date = date.date()
-    
+
     year = date.year
     month = date.month
     day = date.day
-    
+
     solar_term = get_solar_term(year, month, day)
     if solar_term:
         solar_term_intros = {
@@ -273,11 +109,11 @@ def get_chinese_festival_info(date=None):
         date = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
     elif isinstance(date, datetime.datetime):
         date = date.date()
-    
+
     month = date.month
     day = date.day
     month_day = (month, day)
-    
+
     chinese_festivals = {
         (1, 1): ("元旦", "元旦是新年的第一天，标志着新一年的开始。"),
         (2, 14): ("情人节", "情人节是表达爱意的日子，也是浪漫的节日。"),
@@ -293,7 +129,7 @@ def get_chinese_festival_info(date=None):
         (10, 1): ("国庆节", "中华人民共和国国庆节，庆祝新中国的成立。"),
         (12, 25): ("圣诞节", "圣诞节是西方传统节日，庆祝耶稣基督的诞生。"),
     }
-    
+
     if month_day in chinese_festivals:
         name, intro = chinese_festivals[month_day]
         return f"中国节日：{name} - {intro}"
@@ -305,12 +141,12 @@ def get_german_festival_info(date=None):
         date = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
     elif isinstance(date, datetime.datetime):
         date = date.date()
-    
+
     year = date.year
     month = date.month
     day = date.day
     month_day = (month, day)
-    
+
     easter = calculate_easter(year)
     german_festivals = {
         (1, 1): ("新年", "Neujahr - 德国的新年，是公共假日。"),
@@ -321,14 +157,14 @@ def get_german_festival_info(date=None):
         (12, 25): ("圣诞节", "Weihnachten - 德国最重要的节日之一，是公共假日。"),
         (12, 26): ("节礼日", "Zweiter Weihnachtsfeiertag - 圣诞节的第二天，是公共假日。"),
     }
-    
+
     # 基于复活节的德国节日
     easter_friday = easter - datetime.timedelta(days=2)  # 耶稣受难日
     easter_monday = easter + datetime.timedelta(days=1)  # 复活节星期一
     ascension = easter + datetime.timedelta(days=39)  # 耶稣升天节
     whit_monday = easter + datetime.timedelta(days=50)  # 圣灵降临节星期一
     corpus_christi = easter + datetime.timedelta(days=60)  # 基督圣体节
-    
+
     if date == easter_friday:
         return "德国节日：耶稣受难日（Karfreitag） - 这是复活节前的星期五，是公共假日。"
     elif date == easter:
@@ -352,11 +188,11 @@ def get_australian_festival_info(date=None):
         date = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
     elif isinstance(date, datetime.datetime):
         date = date.date()
-    
+
     month = date.month
     day = date.day
     month_day = (month, day)
-    
+
     australian_festivals = {
         (1, 1): ("新年", "New Year's Day - 澳大利亚的新年，是公共假日。"),
         (1, 26): ("澳大利亚日", "Australia Day - 庆祝1788年第一批欧洲移民抵达澳大利亚，是公共假日。"),
@@ -368,290 +204,192 @@ def get_australian_festival_info(date=None):
         (12, 25): ("圣诞节", "Christmas Day - 澳大利亚的圣诞节，是公共假日。"),
         (12, 26): ("节礼日", "Boxing Day - 圣诞节的第二天，是公共假日。"),
     }
-    
+
     if month_day in australian_festivals:
         name, intro = australian_festivals[month_day]
         return f"澳大利亚节日：{name} - {intro}"
     return None
 
-# 请求天气
-url = f"http://api.openweathermap.org/data/2.5/forecast?q={CITY}&appid={API_KEY}&lang=zh_cn&units=metric"
-res = requests.get(url).json()
+def prepare_weather(res, now=None):
+    timezone_name = os.getenv("CITY_TIMEZONE")
+    tz = (ZoneInfo(timezone_name) if timezone_name else
+          datetime.timezone(datetime.timedelta(seconds=res["city"]["timezone"])))
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    tomorrow = now.astimezone(tz).date() + datetime.timedelta(days=1)
+    # 按时间段分组：早上7-10点，中午10-15点，下午15-18点，晚上18-23点
+    time_periods = {
+        "早上 (07:00-10:00)": (7, 10),
+        "中午 (10:00-15:00)": (10, 15),
+        "下午 (15:00-18:00)": (15, 18),
+        "晚上 (18:00-23:00)": (18, 23)
+    }
 
+    # 收集明天的天气数据
+    tomorrow_data = []
+    rain_expected = False
+    extreme_weather = []
 
-# Debug：把返回内容打印出来
-print("API 返回结果:", res)
+    for item in res["list"]:
+        dt = datetime.datetime.fromtimestamp(item["dt"], tz)
+        if dt.date() == tomorrow:
+            desc = item["weather"][0]["description"]
+            main_weather = item["weather"][0]["main"]
+            icon = item["weather"][0].get("icon", "01d")  # 天气图标代码
+            temp = item["main"]["temp"]
+            feels_like = item["main"]["feels_like"]
+            humidity = item["main"]["humidity"]
+            wind_speed = item["wind"]["speed"]
+            pop = item.get("pop", 0)  # 降水概率
+            rain_volume = item.get("rain", {}).get("3h", 0)  # 3小时降雨量
 
-if "list" not in res:
-    raise Exception(f"OpenWeather API 出错: {res}")
-    
-tomorrow = (datetime.datetime.now() + datetime.timedelta(days=1)).date()
-
-# 按时间段分组：早上7-10点，中午10-15点，下午15-18点，晚上18-23点
-time_periods = {
-    "早上 (07:00-10:00)": (7, 10),
-    "中午 (10:00-15:00)": (10, 15),
-    "下午 (15:00-18:00)": (15, 18),
-    "晚上 (18:00-23:00)": (18, 23)
-}
-
-# 收集明天的天气数据
-tomorrow_data = []
-rain_expected = False
-extreme_weather = []
-
-for item in res["list"]:
-    dt = datetime.datetime.fromtimestamp(item["dt"])
-    if dt.date() == tomorrow:
-        desc = item["weather"][0]["description"]
-        main_weather = item["weather"][0]["main"]
-        icon = item["weather"][0].get("icon", "01d")  # 天气图标代码
-        temp = item["main"]["temp"]
-        feels_like = item["main"]["feels_like"]
-        humidity = item["main"]["humidity"]
-        wind_speed = item["wind"]["speed"]
-        pop = item.get("pop", 0)  # 降水概率
-        rain_volume = item.get("rain", {}).get("3h", 0)  # 3小时降雨量
-        
-        weather_info = {
-            "time": dt,
-            "hour": dt.hour,
-            "desc": desc,
-            "main": main_weather,
-            "icon": icon,  # 添加图标代码
-            "temp": temp,
-            "feels_like": feels_like,
-            "humidity": humidity,
-            "wind_speed": wind_speed,
-            "pop": pop,
-            "rain_volume": rain_volume
-        }
-        tomorrow_data.append(weather_info)
-        
-        # 检测异常天气
-        if main_weather in ["Rain", "Thunderstorm", "Drizzle"] or "雨" in desc:
-            rain_expected = True
-            extreme_weather.append({
-                "time": dt.strftime("%H:%M"),
+            weather_info = {
+                "time": dt,
+                "hour": dt.hour,
                 "desc": desc,
+                "main": main_weather,
+                "icon": icon,  # 添加图标代码
+                "temp": temp,
+                "feels_like": feels_like,
+                "humidity": humidity,
+                "wind_speed": wind_speed,
                 "pop": pop,
                 "rain_volume": rain_volume
-            })
-        elif main_weather in ["Snow", "Squall", "Extreme"] or "雪" in desc:
-            extreme_weather.append({
-                "time": dt.strftime("%H:%M"),
-                "desc": desc,
-                "type": "极端天气"
-            })
+            }
+            tomorrow_data.append(weather_info)
 
-# 按时间段分组整理天气信息
-period_weather = {}
-for period_name, (start_hour, end_hour) in time_periods.items():
-    period_data = [w for w in tomorrow_data if start_hour <= w["hour"] < end_hour]
-    if period_data:
-        # 计算该时间段的平均温度和主要天气
-        avg_temp = sum(w["temp"] for w in period_data) / len(period_data)
-        max_temp = max(w["temp"] for w in period_data)
-        min_temp = min(w["temp"] for w in period_data)
-        avg_feels_like = sum(w["feels_like"] for w in period_data) / len(period_data)
-        max_pop = max(w["pop"] for w in period_data)
-        max_rain = max(w["rain_volume"] for w in period_data)
-        
-        # 找到主要天气状况（降雨概率最高的时段）
-        main_weather_item = max(period_data, key=lambda x: x["pop"])
-        
-        period_weather[period_name] = {
-            "data": period_data,
-            "avg_temp": avg_temp,
-            "max_temp": max_temp,
-            "min_temp": min_temp,
-            "avg_feels_like": avg_feels_like,
-            "max_pop": max_pop,
-            "max_rain": max_rain,
-            "main_desc": main_weather_item["desc"],
-            "main_weather": main_weather_item["main"],
-            "icon": main_weather_item.get("icon", "01d")  # 添加图标代码
-        }
+            # 检测异常天气
+            if main_weather in ["Rain", "Thunderstorm", "Drizzle"] or "雨" in desc:
+                rain_expected = True
+                extreme_weather.append({
+                    "time": dt.strftime("%H:%M"),
+                    "desc": desc,
+                    "pop": pop,
+                    "rain_volume": rain_volume
+                })
+            elif main_weather in ["Snow", "Squall", "Extreme"] or "雪" in desc:
+                extreme_weather.append({
+                    "time": dt.strftime("%H:%M"),
+                    "desc": desc,
+                    "type": "极端天气"
+                })
 
-# 构造格式化的邮件内容（HTML格式，支持图片）
-html_parts = []
-html_parts.append("""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .header { font-size: 18px; font-weight: bold; margin-bottom: 15px; }
-        .warning { background-color: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; margin: 10px 0; }
-        .period { margin: 15px 0; padding: 10px; background-color: #f8f9fa; border-radius: 5px; }
-        .period-title { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
-        .weather-info { margin: 5px 0; }
-        .tip { background-color: #d1ecf1; padding: 10px; border-left: 4px solid #0c5460; margin: 10px 0; }
-        .fact { background-color: #e7f3ff; padding: 10px; border-left: 4px solid #0066cc; margin: 10px 0; font-style: italic; }
-    </style>
-</head>
-<body>""")
+    # 按时间段分组整理天气信息
+    period_weather = {}
+    for period_name, (start_hour, end_hour) in time_periods.items():
+        period_data = [w for w in tomorrow_data if start_hour <= w["hour"] < end_hour]
+        if period_data:
+            # 计算该时间段的平均温度和主要天气
+            avg_temp = sum(w["temp"] for w in period_data) / len(period_data)
+            max_temp = max(w["temp"] for w in period_data)
+            min_temp = min(w["temp"] for w in period_data)
+            avg_feels_like = sum(w["feels_like"] for w in period_data) / len(period_data)
+            max_pop = max(w["pop"] for w in period_data)
+            max_rain = max(w["rain_volume"] for w in period_data)
 
-# 检查节日和节气信息，依次检查：节气、中国节日、德国节日、澳大利亚节日
-festival_infos = []
-solar_term_info = get_solar_term_info(tomorrow)
-if solar_term_info:
-    festival_infos.append(solar_term_info)
+            # 找到主要天气状况（降雨概率最高的时段）
+            main_weather_item = max(period_data, key=lambda x: x["pop"])
 
-chinese_festival_info = get_chinese_festival_info(tomorrow)
-if chinese_festival_info:
-    festival_infos.append(chinese_festival_info)
+            period_weather[period_name] = {
+                "data": period_data,
+                "avg_temp": avg_temp,
+                "max_temp": max_temp,
+                "min_temp": min_temp,
+                "avg_feels_like": avg_feels_like,
+                "max_pop": max_pop,
+                "max_rain": max_rain,
+                "main_desc": main_weather_item["desc"],
+                "main_weather": main_weather_item["main"],
+                "icon": main_weather_item.get("icon", "01d")  # 添加图标代码
+            }
 
-german_festival_info = get_german_festival_info(tomorrow)
-if german_festival_info:
-    festival_infos.append(german_festival_info)
-
-australian_festival_info = get_australian_festival_info(tomorrow)
-if australian_festival_info:
-    festival_infos.append(australian_festival_info)
-
-# 构建标题行
-header_title = f'📅 {tomorrow.strftime("%Y年%m月%d日")} {CITY} 天气预报 🌤️'
-if festival_infos:
-    # 如果有节日信息，用分隔符连接并添加到标题中
-    festival_text = ' | '.join(festival_infos)
-    header_title = f'{header_title}<br><span style="font-size: 14px; color: #666; font-weight: normal;">{festival_text}</span>'
-
-html_parts.append(f'<div class="header">{header_title}</div>')
-
-# 异常天气预警（突出显示）
-if extreme_weather:
-    html_parts.append('<div class="warning">⚠️ <strong>【降雨预警】</strong> 🌧️')
-    for ew in extreme_weather:
-        if "rain_volume" in ew:
-            rain_info = f" 降雨量{ew['rain_volume']:.1f}mm" if ew['rain_volume'] > 0 else ""
-            html_parts.append(f"<div>⏰ {ew['time']}: {ew['desc']} 降水概率{int(ew['pop']*100)}%{rain_info}</div>")
-        else:
-            html_parts.append(f"<div>⏰ {ew['time']}: {ew['desc']}</div>")
-    html_parts.append('</div>')
-
-# 各时段预报（简洁格式）
-period_emojis = {
-    "早上": "🌅",
-    "中午": "☀️",
-    "下午": "🌤️",
-    "晚上": "🌙"
-}
-
-for period_name, period_info in period_weather.items():
-    # 时间段标题（去掉括号）
-    period_title = period_name.split("(")[0].strip()
-    emoji = period_emojis.get(period_title, "📌")
-    
-    html_parts.append(f'<div class="period">')
-    html_parts.append(f'<div class="period-title">{emoji} {period_title}</div>')
-    
-    # 根据天气类型选择emoji
-    weather_emoji = "🌤️"  # 默认
-    main_weather = period_info['main_weather']
-    desc = period_info['main_desc']
-    if main_weather in ["Rain", "Thunderstorm", "Drizzle"] or "雨" in desc:
-        weather_emoji = "🌧️"
-    elif main_weather in ["Snow"] or "雪" in desc:
-        weather_emoji = "❄️"
-    elif main_weather in ["Clear"] or "晴" in desc:
-        weather_emoji = "☀️"
-    elif main_weather in ["Clouds"] or "云" in desc:
-        weather_emoji = "☁️"
-    elif main_weather in ["Mist", "Fog", "Haze"] or "雾" in desc or "霾" in desc:
-        weather_emoji = "🌫️"
-    
-    # 关键信息：天气、温度、降水（带图标）
-    weather_line = f'<div class="weather-info">{weather_emoji} 天气: {period_info["main_desc"]}</div>'
-    temp_line = f'<div class="weather-info">🌡️ 温度: {period_info["min_temp"]:.0f}~{period_info["max_temp"]:.0f}°C (体感{period_info["avg_feels_like"]:.0f}°C)</div>'
-    
-    if period_info["max_pop"] > 0:
-        rain_line = f'<div class="weather-info">☔ 降水概率: {int(period_info["max_pop"]*100)}%'
-        if period_info["max_rain"] > 0:
-            rain_line += f' 降雨量: {period_info["max_rain"]:.1f}mm'
-        rain_line += '</div>'
-        html_parts.append(weather_line)
-        html_parts.append(temp_line)
-        html_parts.append(rain_line)
-    else:
-        html_parts.append(weather_line)
-        html_parts.append(temp_line)
-    
-    html_parts.append('</div>')
-
-# 简短提示
-if rain_expected:
-    html_parts.append('<div class="tip">💡 <strong>提示:</strong> 明天有降雨，请带伞 ☂️</div>')
-elif extreme_weather:
-    html_parts.append('<div class="tip">💡 <strong>提示:</strong> 明天有极端天气，请注意安全 ⚠️</div>')
-
-# 添加有趣的地理知识（基于日期，每天不同）
-geo_fact = get_geo_fact(tomorrow)
-html_parts.append(f'<div class="fact">🌍 {geo_fact}</div>')
-
-html_parts.append("</body></html>")
-html_msg = "\n".join(html_parts)
+    if not tomorrow_data:
+        raise ValueError("天气接口没有目标城市明日的数据")
+    return tomorrow, period_weather, rain_expected, extreme_weather
 
 
-# 邮箱推送
-def send_email(subject, body, to_email):
-    """发送邮件"""
-    # 邮箱配置
-    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")  # SMTP服务器
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))  # SMTP端口
-    sender_email = os.getenv("SENDER_EMAIL")  # 发送者邮箱
-    sender_password = os.getenv("SENDER_PASSWORD")  # 发送者密码或应用密码
-    
-    if not all([sender_email, sender_password, to_email]):
-        print("邮箱配置不完整，跳过邮件发送")
+def fetch_weather(city):
+    key = os.getenv("OPENWEATHER_KEY")
+    if not key:
+        raise ValueError("请配置 OPENWEATHER_KEY")
+    response = requests.get("https://api.openweathermap.org/data/2.5/forecast",
+                            params={"q": city, "appid": key, "lang": "zh_cn", "units": "metric"},
+                            timeout=(10, 30))
+    if response.status_code != 200:
+        raise ValueError(f"天气接口请求失败（HTTP {response.status_code}）")
+    data = response.json()
+    if not isinstance(data, dict) or not isinstance(data.get("list"), list):
+        raise ValueError("天气接口返回格式无效")
+    return data
+
+
+def send_email(subject, html, plain, recipients):
+    sender = os.getenv("SENDER_EMAIL")
+    password = os.getenv("SENDER_PASSWORD")
+    if not sender or not password or not recipients:
+        raise ValueError("请配置 SENDER_EMAIL、SENDER_PASSWORD 和 RECIPIENT_EMAIL")
+    failures = 0
+    with smtplib.SMTP(os.getenv("SMTP_SERVER") or "smtp.gmail.com",
+                      int(os.getenv("SMTP_PORT") or "587"), timeout=30) as server:
+        server.starttls(context=ssl.create_default_context())
+        server.login(sender, password)
+        for recipient in recipients:
+            message = EmailMessage()
+            message["From"] = sender
+            message["To"] = recipient
+            message["Subject"] = subject
+            message.set_content(plain)
+            message.add_alternative(html, subtype="html")
+            try:
+                server.send_message(message)
+            except (smtplib.SMTPException, OSError):
+                failures += 1
+                logging.error("一封邮件发送失败。")
+    if failures:
+        raise RuntimeError(f"{failures} 封邮件发送失败")
+    logging.info("已成功发送 %d 封邮件。", len(recipients))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--preview", metavar="PATH", help="离线生成示例HTML，不调用API或发送邮件")
+    args = parser.parse_args()
+    city = os.getenv("CITY") or "Sydney"
+    if args.preview:
+        date = datetime.date(2026, 10, 3)
+        periods = {name: {"main_desc": desc, "min_temp": low, "max_temp": high,
+                          "avg_feels_like": low, "max_pop": pop}
+                   for name, desc, low, high, pop in [
+                       ("早上 (07:00-10:00)", "多云", 14, 16, .1),
+                       ("中午 (10:00-15:00)", "小雨", 16, 18, .8),
+                       ("下午 (15:00-18:00)", "小雨", 15, 17, .7),
+                       ("晚上 (18:00-23:00)", "多云", 13, 15, .2)]}
+        fortune = {"title": "云过天青", "verse": "等一朵云走过，也给心事一点晴空。",
+                   "interpretation": "不必把一天安排得太满，留一点空白，接住生活的小惊喜。",
+                   "good": "给惦记的人一句问候", "avoid": "为了赶路忘记看风景"}
+        html, _ = render_email(date, city, periods, True, [], fortune, True, [], preview=True)
+        Path(args.preview).write_text(html, encoding="utf-8")
+        logging.info("示例预览已保存：%s", args.preview)
         return
-    
+    recipients = [v.strip() for v in (os.getenv("RECIPIENT_EMAIL") or "").split(",") if v.strip()]
+    if not recipients or not os.getenv("SENDER_EMAIL") or not os.getenv("SENDER_PASSWORD"):
+        raise ValueError("请先配置发件邮箱、密码和收件人")
+    date, periods, rain, extreme = prepare_weather(fetch_weather(city))
+    summary = [{"period": name, "weather": p["main_desc"], "min_c": p["min_temp"],
+                "max_c": p["max_temp"], "rain_probability": p["max_pop"]}
+               for name, p in periods.items()]
+    fortune, generated = get_daily_fortune(date, city, summary)
+    festivals = [info for fn in (get_solar_term_info, get_chinese_festival_info,
+                                 get_german_festival_info, get_australian_festival_info)
+                 if (info := fn(date))]
+    html, plain = render_email(date, city, periods, rain, extreme, fortune, generated, festivals)
+    send_email(f"明日签 · {fortune['title']} | {city} {date:%m月%d日}", html, plain, recipients)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     try:
-        # 创建邮件对象
-        message = MIMEMultipart()
-        message["From"] = sender_email
-        message["To"] = to_email
-        # 确保邮件主题使用UTF-8编码，避免乱码
-        message["Subject"] = Header(subject, "utf-8")
-        
-        # 添加邮件正文（只发送HTML版本，不发送纯文本）
-        # 检查body是否包含HTML标签
-        if "<html>" in body or "<div" in body:
-            # 只发送HTML版本，确保UTF-8编码
-            html_body = body
-            html_part = MIMEText(html_body, "html", "utf-8")
-            message.attach(html_part)
-        else:
-            # 如果不是HTML，发送纯文本（UTF-8编码）
-            message.attach(MIMEText(body, "plain", "utf-8"))
-        
-        # 连接SMTP服务器并发送邮件
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()  # 启用TLS加密
-            server.login(sender_email, sender_password)
-            server.send_message(message)
-            print(f"邮件已成功发送到 {to_email}")
-            
-    except Exception as e:
-        print(f"邮件发送失败: {e}")
-
-# 发送天气邮件（支持多个收件人，用逗号分隔）
-recipient_emails_str = os.getenv("RECIPIENT_EMAIL", "")  # 接收者邮箱，支持多个，用逗号分隔
-if recipient_emails_str:
-    # 分割邮箱地址，去除空白字符
-    recipient_emails = [email.strip() for email in recipient_emails_str.split(",") if email.strip()]
-    
-    if recipient_emails:
-        print(f"📧 准备发送邮件到 {len(recipient_emails)} 个收件人: {', '.join(recipient_emails)}")
-        for email in recipient_emails:
-            send_email("今天小宝要带伞吗？", html_msg, email)
-        print(f"✅ 已向所有收件人发送邮件")
-    else:
-        print("❌ 未检测到有效的收件人邮箱")
-else:
-    print("❌ 未设置接收者邮箱，跳过邮件发送")
-    print("   请设置环境变量: export RECIPIENT_EMAIL='email1@example.com,email2@example.com'")
-    print("   或在 GitHub Secrets 中设置 RECIPIENT_EMAIL（支持多个邮箱，用逗号分隔）")
-
-
-
+        main()
+    except Exception as error:
+        # Avoid logging request URLs, authentication data or recipient addresses.
+        logging.error("运行失败（%s），请检查配置与服务状态。", type(error).__name__)
+        raise SystemExit(1)

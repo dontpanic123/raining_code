@@ -18,7 +18,15 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install -r requirements.txt
+
+      - name: Restore daily fortunes
+        uses: actions/cache@v4
+        with:
+          path: .cache/fortunes
+          key: fortunes-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            fortunes-v1-
 
       - name: Run weather reminder script
         run: python main.py
@@ -30,3 +38,6 @@ jobs:
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+          CITY_TIMEZONE: ${{ secrets.CITY_TIMEZONE }}

@@ -12,7 +12,12 @@
 - `SENDER_PASSWORD`: 发送者邮箱密码/应用密码
 - `RECIPIENT_EMAIL`: 接收者邮箱地址
 
+- `OPENAI_API_KEY`: AI 每日签密钥；不设置时发送标注为“日常寄语”的回退内容。
+
 #### 可选配置
+- `CITY`: 城市，默认 Sydney。
+- `CITY_TIMEZONE`: IANA 时区，例如 Australia/Sydney 或 Europe/Berlin，推荐配置。
+- `OPENAI_MODEL`: 支持 Structured Outputs 的模型，默认 gpt-4o-mini。
 - `SMTP_SERVER`: SMTP服务器（默认：smtp.gmail.com）
 - `SMTP_PORT`: SMTP端口（默认：587）
 
@@ -56,9 +61,9 @@ SMTP_PORT: 587
 
 ### 4. 运行时间配置
 
-当前配置为每天 UTC 时间 9:00 运行（对应北京时间 17:00，悉尼时间 20:00）
+当前配置为每天 UTC 时间 9:00 运行（对应北京时间 17:00，悉尼时间 19:00 或 20:00（随夏令时变化））
 
-如需修改时间，编辑 `workflows/weather.yml` 中的 cron 表达式：
+如需修改时间，编辑 `.github/workflows/main.yml` 中的 cron 表达式：
 ```yaml
 schedule:
   - cron: "0 9 * * *"   # UTC 时间
@@ -94,3 +99,5 @@ schedule:
 - 不要在代码中硬编码密码
 - 定期更换应用密码
 - 使用最小权限原则
+
+每日签按日期、城市与模型缓存，Actions 使用缓存跨运行复用。请勿在签语中加入私人资料。
