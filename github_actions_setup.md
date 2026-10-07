@@ -14,7 +14,7 @@
 
 
 #### 可选配置
-- `OPENAI_API_KEY`: AI 每日签密钥；不设置时按日期使用内置的一年预备寄语，无需付费 AI API。只用文案库时可以删除此 Secret。
+- `OPENAI_API_KEY`: 可选 AI 每日签密钥。工作流默认设置 `FORTUNE_SOURCE: prepared`，直接按日期使用预备文案，不调用 AI、不读取旧 AI 缓存；要开启 AI，需将工作流中的该值改为 `ai`。
 - `CITY`: 城市，默认 Sydney。
 - `CITY_TIMEZONE`: IANA 时区，例如 Australia/Sydney 或 Europe/Berlin，推荐配置。
 - `OPENAI_MODEL`: 支持 Structured Outputs 的模型，默认 gpt-4o-mini。

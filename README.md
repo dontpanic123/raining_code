@@ -12,7 +12,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-环境文件不会自动加载。必须设置天气密钥和邮件配置；设置 `OPENAI_API_KEY` 启用 AI 每日签，`OPENAI_MODEL` 默认为 `gpt-4o-mini`。模型需要支持 JSON Schema Structured Outputs。AI 接收日期、城市和天气摘要，不接收邮箱地址。
+环境文件不会自动加载。必须设置天气密钥和邮件配置；默认按日期读取预备文案。仅在设置 `FORTUNE_SOURCE=ai` 和 `OPENAI_API_KEY` 时启用 AI 每日签，`OPENAI_MODEL` 默认为 `gpt-4o-mini`。模型需要支持 JSON Schema Structured Outputs。AI 接收日期、城市和天气摘要，不接收邮箱地址。
 
 推荐设置 `CITY_TIMEZONE=Australia/Sydney`（或目标城市对应的 IANA 时区），以正确处理夏令时。未设置时使用天气接口的 UTC 偏移。
 
@@ -32,7 +32,7 @@ python -m unittest discover -s tests -v
 - 未配置密钥、超时、拒答或输出不合格式时，按目标城市日期读取预备寄语，不影响天气邮件。
 - 文案库位于 `data/fortunes_2026_2027.json`，覆盖 2026-10-08 至 2027-10-07，共 365 份。25 个生活主题轮换，365 条完整签语互不相同，主题、解读与宜忌会复用；不预设实际天气或南北半球季节。
 - 超出覆盖日期时，按与起始日期相差的天数循环选用文案；同一日期各城市共享预备寄语。邮件标注“预备文案 · 宜忌仅作生活灵感”。
-- 如只使用预备寄语，无需配置 `OPENAI_API_KEY`；GitHub Actions 可删除该 Secret。配置密钥时仍优先使用 AI 或已有 AI 缓存，失败后使用当天预备文案。
+- 默认直接使用预备寄语，忽略 AI 密钥和旧 AI 缓存。Actions 显式设置 `FORTUNE_SOURCE: prepared`；如要启用实时 AI，需将此值改为 `ai` 并配置密钥。日志会显示目标日期和所选文案标题。
 - 签语是 AI 创作，不宣称传统黄历依据；页面中的宜忌是生活灵感。
 - 天气不可用或邮件发送失败时，程序以非零状态退出。
 - 原有节日提示保留为简短文字，节气仍使用原项目的近似日期规则。

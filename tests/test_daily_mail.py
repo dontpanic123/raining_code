@@ -1,4 +1,5 @@
 import datetime as dt
+import hashlib
 import json
 import os
 import tempfile
@@ -8,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import requests
 import main
-from daily_fortune import FORTUNE_LIBRARY, fallback_fortune, get_daily_fortune, validate_fortune
+from daily_fortune import FORTUNE_LIBRARY, PROMPT, fallback_fortune, get_daily_fortune, validate_fortune
 from email_template import render_email
 
 
@@ -16,7 +17,8 @@ class DailyMailTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        env = patch.dict(os.environ, {"FORTUNE_CACHE_DIR": self.tmp.name}, clear=True)
+        env = patch.dict(os.environ, {"FORTUNE_CACHE_DIR": self.tmp.name,
+                                      "FORTUNE_SOURCE": "ai"}, clear=True)
         env.start()
         self.addCleanup(env.stop)
         self.date = dt.date(2026, 10, 3)
@@ -24,6 +26,19 @@ class DailyMailTests(unittest.TestCase):
     @patch('daily_fortune.requests.post')
     def test_missing_key_never_calls_api(self, post):
         self.assertFalse(get_daily_fortune(self.date, 'Sydney', [])[1])
+        post.assert_not_called()
+
+    @patch('daily_fortune.requests.post')
+    def test_default_uses_prepared_content_even_with_api_key_and_cache(self, post):
+        os.environ.pop('FORTUNE_SOURCE')
+        os.environ['OPENAI_API_KEY'] = 'test-key'
+        date = dt.date(2026, 10, 8)
+        cache_key = hashlib.sha256(f'{date}|Sydney|gpt-4o-mini|{PROMPT}'.encode()).hexdigest()
+        (Path(self.tmp.name) / f'{cache_key}.json').write_text(
+            json.dumps(fallback_fortune()), encoding='utf-8')
+        for offset in range(3):
+            day = date + dt.timedelta(days=offset)
+            self.assertEqual(get_daily_fortune(day, 'Sydney', []), (fallback_fortune(day), False))
         post.assert_not_called()
 
     def test_prepared_year_is_complete_and_distinct(self):

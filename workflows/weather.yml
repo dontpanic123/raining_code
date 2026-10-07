@@ -31,6 +31,7 @@ jobs:
       - name: Run weather reminder script
         run: python main.py
         env:
+          FORTUNE_SOURCE: prepared
           OPENWEATHER_KEY: ${{ secrets.OPENWEATHER_KEY }}
           CITY: ${{ secrets.CITY }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}

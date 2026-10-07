@@ -35,10 +35,16 @@ def fallback_fortune(date=None):
         try:
             entries = json.loads(FORTUNE_LIBRARY.read_text(encoding="utf-8"))
             if str(date) in entries:
-                return validate_fortune(entries[str(date)])
+                fortune = validate_fortune(entries[str(date)])
+                logging.info("使用预备寄语：日期 %s，标题 %s。", date, fortune["title"])
+                return fortune
             dates = sorted(entries)
             index = (dt.date.fromisoformat(str(date)) - dt.date.fromisoformat(dates[0])).days
-            return validate_fortune(entries[dates[index % len(dates)]])
+            selected = dates[index % len(dates)]
+            fortune = validate_fortune(entries[selected])
+            logging.info("使用循环预备寄语：目标日期 %s，文案日期 %s，标题 %s。",
+                         date, selected, fortune["title"])
+            return fortune
         except (OSError, ValueError, KeyError, IndexError, TypeError):
             logging.warning("预备寄语读取失败，使用基础寄语。")
     return {"title": "从容有时", "verse": "把日子放慢一点，让心意走近一点。",
@@ -47,7 +53,9 @@ def fallback_fortune(date=None):
 
 
 def get_daily_fortune(date, city, weather):
-    """Return (content, generated_by_ai). Cache by date/city/model/prompt version."""
+    """Use prepared text by default; opt in to AI with FORTUNE_SOURCE=ai."""
+    if os.getenv("FORTUNE_SOURCE", "prepared").strip().lower() != "ai":
+        return fallback_fortune(date), False
     model = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
     cache_key = hashlib.sha256(f"{date}|{city}|{model}|{PROMPT}".encode()).hexdigest()
     cache = Path(os.getenv("FORTUNE_CACHE_DIR") or ".cache/fortunes") / f"{cache_key}.json"
