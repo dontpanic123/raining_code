@@ -59,11 +59,24 @@ def get_daily_fortune(date, city, weather):
                 "max_completion_tokens": 800}, timeout=(10, 45))
         response.raise_for_status()
         choice = response.json()["choices"][0]
-        if choice.get("finish_reason") != "stop" or choice["message"].get("refusal"):
-            raise ValueError("Incomplete or refused response")
+        if choice.get("finish_reason") != "stop":
+            raise ValueError("Incomplete response (finish_reason is not stop)")
+        if choice["message"].get("refusal"):
+            raise ValueError("Model refused response")
         fortune = validate_fortune(json.loads(choice["message"]["content"]))
-    except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):
-        logging.warning("每日签生成失败，使用日常寄语；天气邮件继续发送。")
+    except requests.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else "unknown"
+        logging.warning("每日签生成失败：HTTP %s，模型 %s；使用日常寄语，天气邮件继续发送。",
+                        status, model)
+        return fallback_fortune(), False
+    except requests.RequestException as exc:
+        logging.warning("每日签生成失败：网络错误 %s，模型 %s；使用日常寄语，天气邮件继续发送。",
+                        type(exc).__name__, model)
+        return fallback_fortune(), False
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        reason = (str(exc) if type(exc) is ValueError else type(exc).__name__)
+        logging.warning("每日签生成失败：响应校验错误 %s，模型 %s；使用日常寄语，天气邮件继续发送。",
+                        reason, model)
         return fallback_fortune(), False
     try:
         cache.parent.mkdir(parents=True, exist_ok=True)
