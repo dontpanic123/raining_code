@@ -3,11 +3,12 @@ import json
 import os
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import requests
 import main
-from daily_fortune import fallback_fortune, get_daily_fortune
+from daily_fortune import FORTUNE_LIBRARY, fallback_fortune, get_daily_fortune, validate_fortune
 from email_template import render_email
 
 
@@ -24,6 +25,36 @@ class DailyMailTests(unittest.TestCase):
     def test_missing_key_never_calls_api(self, post):
         self.assertFalse(get_daily_fortune(self.date, 'Sydney', [])[1])
         post.assert_not_called()
+
+    def test_prepared_year_is_complete_and_distinct(self):
+        entries = json.loads(FORTUNE_LIBRARY.read_text(encoding='utf-8'))
+        start = dt.date(2026, 10, 8)
+        expected = {(start + dt.timedelta(days=i)).isoformat() for i in range(365)}
+        self.assertEqual(set(entries), expected)
+        self.assertEqual(len({item['verse'] for item in entries.values()}), 365)
+        for date, content in entries.items():
+            self.assertEqual(validate_fortune(content), content)
+            self.assertEqual(fallback_fortune(dt.date.fromisoformat(date)), content)
+
+    @patch('daily_fortune.requests.post')
+    def test_prepared_content_used_without_key_and_on_http_failure(self, post):
+        date = dt.date(2026, 10, 8)
+        expected = (fallback_fortune(date), False)
+        self.assertEqual(get_daily_fortune(date, 'Sydney', []), expected)
+        self.assertNotEqual(expected[0], fallback_fortune(date + dt.timedelta(days=1)))
+        post.assert_not_called()
+        os.environ['OPENAI_API_KEY'] = 'test-key'
+        response = requests.Response()
+        response.status_code = 429
+        post.return_value.raise_for_status.side_effect = requests.HTTPError(response=response)
+        self.assertEqual(get_daily_fortune(date, 'Berlin', []), expected)
+
+    def test_library_rotates_outside_range_and_survives_missing_file(self):
+        start = dt.date(2026, 10, 8)
+        self.assertEqual(fallback_fortune(start + dt.timedelta(days=365)), fallback_fortune(start))
+        validate_fortune(fallback_fortune(start - dt.timedelta(days=1)))
+        with patch('daily_fortune.FORTUNE_LIBRARY', new=Path(self.tmp.name) / 'missing.json'):
+            self.assertEqual(fallback_fortune(start), fallback_fortune())
 
     @patch('daily_fortune.requests.post')
     def test_success_cached_across_calls(self, post):
@@ -59,7 +90,7 @@ class DailyMailTests(unittest.TestCase):
         self.assertNotIn('<script>', html)
         self.assertIn('&lt;script&gt;', html)
         self.assertIn('&lt;Berlin&gt;', html)
-        self.assertIn('非 AI 生成', html)
+        self.assertIn('预备文案', html)
         self.assertIn('明日寄语', plain)
 
     def test_city_date_and_dst(self):

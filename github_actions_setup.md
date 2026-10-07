@@ -12,9 +12,9 @@
 - `SENDER_PASSWORD`: 发送者邮箱密码/应用密码
 - `RECIPIENT_EMAIL`: 接收者邮箱地址
 
-- `OPENAI_API_KEY`: AI 每日签密钥；不设置时发送标注为“日常寄语”的回退内容。
 
 #### 可选配置
+- `OPENAI_API_KEY`: AI 每日签密钥；不设置时按日期使用内置的一年预备寄语，无需付费 AI API。只用文案库时可以删除此 Secret。
 - `CITY`: 城市，默认 Sydney。
 - `CITY_TIMEZONE`: IANA 时区，例如 Australia/Sydney 或 Europe/Berlin，推荐配置。
 - `OPENAI_MODEL`: 支持 Structured Outputs 的模型，默认 gpt-4o-mini。

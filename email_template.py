@@ -6,7 +6,7 @@ def render_email(date, city, periods, rain, extreme, fortune, generated, festiva
     e = lambda value: escape(str(value), quote=True)
     label = "明日签" if generated else "明日寄语"
     note = ("示例文案 · 仅供预览" if preview else
-            "AI 创作 · 宜忌仅作生活灵感" if generated else "日常寄语 · 非 AI 生成")
+            "AI 创作 · 宜忌仅作生活灵感" if generated else "预备文案 · 宜忌仅作生活灵感")
     tip = "明天有雨，记得带伞。" if rain else "出门前，留一点时间看看天空。"
     if extreme:
         tip = ("明天有雨，记得带伞；另有特殊天气，请留意预报。" if rain and

@@ -1,5 +1,6 @@
 """Generate a short daily fortune; network failures never block weather mail."""
 import hashlib
+import datetime as dt
 import json
 import logging
 import os
@@ -25,7 +26,21 @@ def validate_fortune(value):
     return {key: value[key].strip() for key in LIMITS}
 
 
-def fallback_fortune():
+FORTUNE_LIBRARY = Path(__file__).resolve().parent / "data" / "fortunes_2026_2027.json"
+
+
+def fallback_fortune(date=None):
+    """Use the prepared day's text; rotate the library outside its date range."""
+    if date is not None:
+        try:
+            entries = json.loads(FORTUNE_LIBRARY.read_text(encoding="utf-8"))
+            if str(date) in entries:
+                return validate_fortune(entries[str(date)])
+            dates = sorted(entries)
+            index = (dt.date.fromisoformat(str(date)) - dt.date.fromisoformat(dates[0])).days
+            return validate_fortune(entries[dates[index % len(dates)]])
+        except (OSError, ValueError, KeyError, IndexError, TypeError):
+            logging.warning("预备寄语读取失败，使用基础寄语。")
     return {"title": "从容有时", "verse": "把日子放慢一点，让心意走近一点。",
             "interpretation": "先完成一件手边的小事，也给自己留一段不被催促的时间。",
             "good": "整理一处小角落", "avoid": "急着给自己下结论"}
@@ -43,7 +58,7 @@ def get_daily_fortune(date, city, weather):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         logging.warning("未配置 OPENAI_API_KEY，使用日常寄语。")
-        return fallback_fortune(), False
+        return fallback_fortune(date), False
     schema = {"type": "object", "properties": {k: {"type": "string"} for k in LIMITS},
               "required": list(LIMITS), "additionalProperties": False}
     try:
@@ -68,16 +83,16 @@ def get_daily_fortune(date, city, weather):
         status = exc.response.status_code if exc.response is not None else "unknown"
         logging.warning("每日签生成失败：HTTP %s，模型 %s；使用日常寄语，天气邮件继续发送。",
                         status, model)
-        return fallback_fortune(), False
+        return fallback_fortune(date), False
     except requests.RequestException as exc:
         logging.warning("每日签生成失败：网络错误 %s，模型 %s；使用日常寄语，天气邮件继续发送。",
                         type(exc).__name__, model)
-        return fallback_fortune(), False
+        return fallback_fortune(date), False
     except (ValueError, KeyError, IndexError, TypeError) as exc:
         reason = (str(exc) if type(exc) is ValueError else type(exc).__name__)
         logging.warning("每日签生成失败：响应校验错误 %s，模型 %s；使用日常寄语，天气邮件继续发送。",
                         reason, model)
-        return fallback_fortune(), False
+        return fallback_fortune(date), False
     try:
         cache.parent.mkdir(parents=True, exist_ok=True)
         temporary = cache.with_suffix(".tmp")
