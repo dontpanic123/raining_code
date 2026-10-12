@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 import requests
 import main
 from daily_fortune import FORTUNE_LIBRARY, PROMPT, fallback_fortune, get_daily_fortune, validate_fortune
-from email_template import render_email
+from email_template import render_email, travel_advice
 
 
 class DailyMailTests(unittest.TestCase):
@@ -108,6 +108,24 @@ class DailyMailTests(unittest.TestCase):
         self.assertIn('预备文案', html)
         self.assertIn('明日寄语', plain)
 
+    def test_travel_advice_uses_rain_times_and_temperature(self):
+        def period(desc, low, high, pop, kind='Clouds'):
+            return dict(main_desc=desc, min_temp=low, max_temp=high,
+                        avg_feels_like=low, max_pop=pop, main_weather=kind)
+        periods = {'早上 (07:00-10:00)': period('多云', 12, 14, .1),
+                   '中午 (10:00-15:00)': period('小雨', 21, 23, .8, 'Rain')}
+        advice = travel_advice(periods, True, [])
+        self.assertIn('温差较大', advice)
+        self.assertIn('中午可能有雨', advice)
+        self.assertNotIn('早上可能有雨', advice)
+        snow = travel_advice({'晚上': period('大雪', -3, 0, .9, 'Snow')}, False,
+                             [{'time': '18:00', 'desc': '大雪', 'type': '极端天气'}])
+        self.assertIn('保暖', snow)
+        self.assertIn('特殊天气', snow)
+        self.assertNotIn('带伞', snow)
+        self.assertIn('数据不足', travel_advice({}, False, []))
+        self.assertIn('雷雨', travel_advice({'中午': period('雷雨', 20, 24, .9)}, True, []))
+
     def test_city_date_and_dst(self):
         os.environ['CITY_TIMEZONE'] = 'Australia/Sydney'
         # UTC Oct 2 afternoon is already Oct 3 in Sydney. Tomorrow is Oct 4,
@@ -121,6 +139,39 @@ class DailyMailTests(unittest.TestCase):
         self.assertEqual(date, dt.date(2026, 10, 4))
         self.assertIn('早上 (07:00-10:00)', periods)
         self.assertTrue(rain)
+
+    def test_evening_forecast_targets_tomorrow_and_marks_abnormal_weather(self):
+        now = dt.datetime(2026, 10, 12, 17, tzinfo=dt.timezone.utc)
+        def sample(day, hour, kind, desc, temp=15, wind=3, rain=0):
+            return dict(dt=int(dt.datetime(2026, 10, day, hour, tzinfo=dt.timezone.utc).timestamp()),
+                        weather=[dict(main=kind, description=desc)],
+                        main=dict(temp=temp, feels_like=temp, humidity=80),
+                        wind=dict(speed=wind), pop=.8, rain={'3h': rain})
+        samples = [sample(12, 18, 'Thunderstorm', '今天雷雨'),
+                   sample(13, 6, 'Rain', '小雨'),
+                   sample(13, 9, 'Thunderstorm', '雷雨'),
+                   sample(13, 12, 'Clouds', '多云', wind=12),
+                   sample(13, 15, 'Rain', '大雨', rain=12),
+                   sample(13, 18, 'Snow', '雪', temp=-1),
+                   sample(14, 6, 'Thunderstorm', '后天雷雨')]
+        for zone in ('Europe/London', 'Europe/Berlin'):
+            date, periods, rain, events = main.prepare_weather({'list': samples}, now, zone)
+            self.assertEqual(date, dt.date(2026, 10, 13))
+            self.assertTrue(rain)
+            alerts = [event for event in events if 'type' in event]
+            self.assertEqual(len(alerts), 4)
+            self.assertFalse(any('小雨' in event['desc'] for event in alerts))
+            self.assertFalse(any('今天' in event['desc'] or '后天' in event['desc'] for event in events))
+            html, plain = render_email(date, 'Cambridge', periods, rain, events,
+                                       fallback_fortune(), False, [])
+            self.assertLess(html.index('明日异常天气'), html.index('<h1'))
+            self.assertLess(plain.index('明日异常天气'), plain.index('明日寄语'))
+            self.assertIn('风力较强', html)
+            self.assertIn('降雨量较大', html)
+            self.assertEqual(html.count('明日异常天气'), 1)
+        html, plain = render_email(self.date, 'Berlin', {}, False, [], fallback_fortune(), False, [])
+        self.assertNotIn('明日异常天气', html)
+        self.assertNotIn('明日异常天气', plain)
 
     def test_empty_forecast_is_failure(self):
         with self.assertRaises(ValueError):
@@ -158,13 +209,43 @@ class DailyMailTests(unittest.TestCase):
             main.main()
         self.assertEqual(fetch.call_count, 2)
         self.assertEqual(prepare.call_args_list[1].kwargs['timezone_name'], 'Europe/Berlin')
-        self.assertEqual(fortune.call_count, 2)
+        self.assertEqual(fortune.call_count, 1)
         send.assert_called_once()
         html = send.call_args.args[1]
         self.assertEqual(html.count('<html'), 1)
         self.assertEqual(html.count('<body'), 1)
         self.assertIn('Sydney', html)
         self.assertIn('Berlin', html)
+        self.assertEqual(html.count(fallback_fortune()['verse']), 1)
+        self.assertEqual(send.call_args.args[2].count(fallback_fortune()['verse']), 1)
+
+    def test_shared_layout_preserves_dates_missing_periods_and_alerts(self):
+        period = {"main_desc": "小雨", "min_temp": 12, "max_temp": 15,
+                  "avg_feels_like": 11, "max_pop": .8}
+        forecasts = [dict(date=self.date, city='<Sydney>',
+                          periods={'早上 (07:00-10:00)': period}, rain=True,
+                          extreme=[], festivals=['节日 - 介绍']),
+                     dict(date=self.date + dt.timedelta(days=1), city='Berlin',
+                          periods={}, rain=False,
+                          extreme=[{'time': '18:00', 'desc': '大雪', 'type': '极端天气'}],
+                          festivals=['节日 - 介绍'])]
+        html, plain = render_email(**forecasts[0], fortune=fallback_fortune(),
+                                   generated=False, forecasts=forecasts, failed=1)
+        self.assertIn('&lt;Sydney&gt;', html)
+        self.assertNotIn('<Sydney>', html)
+        self.assertIn('10月03日', html)
+        self.assertIn('10月04日', html)
+        self.assertIn('暂无数据', html)
+        self.assertIn('Berlin 18:00 大雪', html)
+        self.assertIn('部分城市天气暂不可用', plain)
+        self.assertEqual(html.count('记得带伞'), 1)
+        self.assertEqual(plain.count('记得带伞'), 1)
+        self.assertEqual(html.count(fallback_fortune()['verse']), 1)
+        self.assertIn('出行准备', html)
+        self.assertIn('出行准备', plain)
+        self.assertIn('早上可能有雨', plain)
+        self.assertIn('scope="col"', html)
+        self.assertIn('时间按各城市当地时间', html)
 
     @patch('main.send_email')
     @patch('main.get_daily_fortune', return_value=(fallback_fortune(), False))

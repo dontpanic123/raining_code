@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 import requests
 from daily_fortune import get_daily_fortune
-from email_template import render_email, combine_emails
+from email_template import render_email
 
 def get_solar_term(year, month, day):
     """计算二十四节气日期（使用近似算法）"""
@@ -258,21 +258,32 @@ def prepare_weather(res, now=None, timezone_name=None):
             }
             tomorrow_data.append(weather_info)
 
-            # 检测异常天气
-            if main_weather in ["Rain", "Thunderstorm", "Drizzle"] or "雨" in desc:
-                rain_expected = True
-                extreme_weather.append({
-                    "time": dt.strftime("%H:%M"),
-                    "desc": desc,
-                    "pop": pop,
-                    "rain_volume": rain_volume
-                })
-            elif main_weather in ["Snow", "Squall", "Extreme"] or "雪" in desc:
-                extreme_weather.append({
-                    "time": dt.strftime("%H:%M"),
-                    "desc": desc,
-                    "type": "极端天气"
-                })
+            # 普通降雨用于带伞提醒；异常天气独立标记，避免雷雨被降雨分支吞掉。
+            is_rain = main_weather in ["Rain", "Thunderstorm", "Drizzle"] or "雨" in desc
+            rain_expected = rain_expected or is_rain
+            signals = []
+            if main_weather == "Thunderstorm" or "雷" in desc:
+                signals.append("雷雨")
+            if main_weather == "Snow" or "雪" in desc:
+                signals.append("降雪")
+            if main_weather in ["Squall", "Extreme"]:
+                signals.append("特殊天气")
+            # 以下阈值用于生活提醒，不代表气象部门发布的预警。
+            if rain_volume >= 10:
+                signals.append("降雨量较大")
+            if wind_speed >= 10:
+                signals.append("风力较强")
+            if temp >= 32:
+                signals.append("高温")
+            if temp <= 0:
+                signals.append("零度及以下")
+            if is_rain or signals:
+                event = {"time": dt.strftime("%H:%M"), "desc": desc,
+                         "pop": pop, "rain_volume": rain_volume}
+                if signals:
+                    event["type"] = "异常天气"
+                    event["desc"] = "、".join(signals) + f"（{desc}，{temp:.0f}°C，风速 {wind_speed:g} m/s）"
+                extreme_weather.append(event)
 
     # 按时间段分组整理天气信息
     period_weather = {}
@@ -355,6 +366,7 @@ def main():
     parser.add_argument("--preview", metavar="PATH", help="离线生成示例HTML，不调用API或发送邮件")
     args = parser.parse_args()
     city = os.getenv("CITY") or "Sydney"
+    cities = list(dict.fromkeys(c.strip() for c in city.split(",") if c.strip())) or ["Sydney"]
     if args.preview:
         date = datetime.date(2026, 10, 3)
         periods = {name: {"main_desc": desc, "min_temp": low, "max_temp": high,
@@ -367,18 +379,20 @@ def main():
         fortune = {"title": "云过天青", "verse": "等一朵云走过，也给心事一点晴空。",
                    "interpretation": "不必把一天安排得太满，留一点空白，接住生活的小惊喜。",
                    "good": "给惦记的人一句问候", "avoid": "为了赶路忘记看风景"}
-        html, _ = render_email(date, city, periods, True, [], fortune, True, [], preview=True)
+        forecasts = [dict(date=date, city=name, periods=periods, rain=True, extreme=[], festivals=[])
+                     for name in cities]
+        html, _ = render_email(date, cities[0], periods, True, [], fortune, True, [],
+                               preview=True, forecasts=forecasts)
         Path(args.preview).write_text(html, encoding="utf-8")
         logging.info("示例预览已保存：%s", args.preview)
         return
     recipients = [v.strip() for v in (os.getenv("RECIPIENT_EMAIL") or "").split(",") if v.strip()]
     if not recipients or not os.getenv("SENDER_EMAIL") or not os.getenv("SENDER_PASSWORD"):
         raise ValueError("请先配置发件邮箱、密码和收件人")
-    cities = list(dict.fromkeys(c.strip() for c in city.split(",") if c.strip())) or ["Sydney"]
     zones = [z.strip() for z in (os.getenv("CITY_TIMEZONE") or "").split(",")]
     if any(zones) and len(zones) != len(cities):
         raise ValueError("CITY_TIMEZONE 必须与 CITY 的城市数量及顺序一致")
-    emails, failed = [], 0
+    forecasts, failed = [], 0
     for index, city_name in enumerate(cities):
         try:
             date, periods, rain, extreme = prepare_weather(
@@ -387,17 +401,21 @@ def main():
             logging.error("一个城市的天气获取失败，继续处理其余城市。")
             failed += 1
             continue
-        summary = [{"period": name, "weather": p["main_desc"], "min_c": p["min_temp"],
-                    "max_c": p["max_temp"], "rain_probability": p["max_pop"]}
-                   for name, p in periods.items()]
-        fortune, generated = get_daily_fortune(date, city_name, summary)
         festivals = [info for fn in (get_solar_term_info, get_chinese_festival_info,
                                      get_german_festival_info, get_australian_festival_info)
                      if (info := fn(date))]
-        emails.append(render_email(date, city_name, periods, rain, extreme, fortune, generated, festivals))
-    if not emails:
+        forecasts.append(dict(date=date, city=city_name, periods=periods, rain=rain,
+                              extreme=extreme, festivals=festivals))
+    if not forecasts:
         raise ValueError("没有可发送的城市天气")
-    html, plain = combine_emails(emails, failed)
+    first = forecasts[0]
+    summary = [{"city": item["city"], "date": item["date"].isoformat(),
+                "period": name, "weather": p["main_desc"], "min_c": p["min_temp"],
+                "max_c": p["max_temp"], "rain_probability": p["max_pop"]}
+               for item in forecasts for name, p in item["periods"].items()]
+    fortune, generated = get_daily_fortune(first["date"], " · ".join(item["city"] for item in forecasts), summary)
+    html, plain = render_email(**first, fortune=fortune, generated=generated,
+                               forecasts=forecasts, failed=failed)
     send_email("明日签与天气 | " + " · ".join(cities), html, plain, recipients)
     if failed:
         raise RuntimeError("已发送部分城市预报，但有城市天气获取失败")

@@ -66,7 +66,7 @@ SMTP_PORT: 587
 如需修改时间，编辑 `.github/workflows/main.yml` 中的 cron 表达式：
 ```yaml
 schedule:
-  - cron: "0 9 * * *"   # UTC 时间
+  - cron: "0 17 * * *"   # UTC 时间
 ```
 
 ### 5. 手动触发

@@ -27,7 +27,7 @@ python -m unittest discover -s tests -v
 
 ## 生成与回退
 
-- 每个日期、城市、模型及提示词版本缓存一份成功生成的签语；多人共享一次生成。
+- 每个日期、城市组合、模型及提示词版本缓存一份成功生成的签语；多人共享一次生成。
 - 缓存目录默认 `.cache/fortunes`，可通过 `FORTUNE_CACHE_DIR` 修改。
 - 未配置密钥、超时、拒答或输出不合格式时，按目标城市日期读取预备寄语，不影响天气邮件。
 - 文案库位于 `data/fortunes_2026_2027.json`，覆盖 2026-10-08 至 2027-10-07，共 365 份。25 个生活主题轮换，365 条完整签语互不相同，主题、解读与宜忌会复用；不预设实际天气或南北半球季节。
@@ -39,11 +39,21 @@ python -m unittest discover -s tests -v
 
 ## GitHub Actions
 
-实际工作流是 `.github/workflows/main.yml`，每天 UTC 09:00 运行，支持手动触发。`workflows/weather.yml` 仅作为同步示例。配置见 [部署指南](github_actions_setup.md)。Actions 缓存成功的签语；缓存被淘汰或并发首次运行时可能重新生成，邮件发送本身不做去重。
+实际工作流是 `.github/workflows/main.yml`，每天 UTC 17:00 运行（英国剑桥冬季 17:00、夏季 18:00；柏林冬季 18:00、夏季 19:00），支持手动触发。`workflows/weather.yml` 仅作为同步示例。配置见 [部署指南](github_actions_setup.md)。Actions 缓存成功的签语；缓存被淘汰或并发首次运行时可能重新生成，邮件发送本身不做去重。
 
 API 实现依据 [OpenAI Structured Outputs 官方文档](https://developers.openai.com/api/docs/guides/structured-outputs)。
 
 ## 多城市
 
-保留多城市合并邮件：`CITY=Sydney,Berlin`。每个城市使用当地的明日日期，分别生成签语和天气卡片，合并到一封邮件。
+保留多城市合并邮件：`CITY=Sydney,Berlin`。每封邮件只生成并展示一份每日签，使用第一个成功获取天气的城市的明日日期，结合所有城市天气。天气按当地时段为行、城市为列并排对照；日期不同则分别标注。带伞提醒合并，特殊天气注明城市与时间，同日期的节日信息只展示一次。
 `CITY_TIMEZONE` 可留空（逐城市使用天气接口偏移），或按相同顺序配置 `Australia/Sydney,Europe/Berlin`。单个城市获取失败时仍发送其余城市，邮件标注缺失，工作流报告失败。
+
+## 出行准备
+
+天气表格前为每座城市提供一句出行摘要：按预报时段的体感温度和温差提示穿衣，标出有雨或降水概率较高的时段，并提示雷雨或特殊天气。建议由天气数据和简单规则生成，HTML 与纯文本内容一致，不额外调用 AI。温差只比较明日已获取的预报时段，不作为全天最高、最低温，也不与不完整的今日数据比较。
+
+## 傍晚提醒与异常天气
+
+始终筛选每座城市当地的第二天数据。英国剑桥与柏林推荐使用 `CITY=Cambridge,Berlin`、`CITY_TIMEZONE=Europe/London,Europe/Berlin`。异常天气置于每日签前的醒目提示区，标注城市和当地时间；普通小雨只保留在出行建议与天气表格中。
+
+生活提醒规则：雷雨、降雪、阵风类天气，以及 3 小时降雨量 ≥10 mm、风速 ≥10 m/s、气温 ≥32°C 或 ≤0°C。这些是程序提醒阈值，不是官方气象预警。
