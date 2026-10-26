@@ -40,10 +40,10 @@ def travel_advice(periods, rain, extreme):
     return "；".join(parts) + "。"
 
 
-def render_email(date, city, periods, rain, extreme, fortune, generated, festivals, preview=False, forecasts=None, failed=0):
+def render_email(date, city, periods, rain, extreme, fortune, generated, festivals, preview=False, forecasts=None, failed=0, knowledge=None):
     e = lambda value: escape(str(value), quote=True)
     label = "明日签" if generated else "明日寄语"
-    note = ("示例文案 · 仅供预览" if preview else
+    note = ("" if preview else
             "AI 创作 · 宜忌仅作生活灵感" if generated else "预备文案 · 宜忌仅作生活灵感")
     forecasts = forecasts or [dict(date=date, city=city, periods=periods,
                                    rain=rain, extreme=extreme, festivals=festivals)]
@@ -105,6 +105,10 @@ def render_email(date, city, periods, rain, extreme, fortune, generated, festiva
                  if multiple_dates else f"{date:%Y年%m月%d日}")
     f = {key: e(value) for key, value in fortune.items()}
     plain = f"{city} · {date_text}\n{alert_plain}{label} · {fortune['title']}\n{fortune['verse']}\n\n{fortune['interpretation']}\n宜：{fortune['good']}\n忌：{fortune['avoid']}\n\n出行准备\n{advice_plain}\n\n明日天气\n" + "\n".join(lines) + f"\n{notice}\n{festival_text}\n\n{note}\n"
+    knowledge_html, knowledge_plain = render_knowledge(knowledge)
+    plain += knowledge_plain
+    footer_html = (f'<tr><td align="center" style="padding:18px 20px;border-top:1px solid #eeeae3;font-size:10px;letter-spacing:1px;color:#96958c;">{e(note)}</td></tr>'
+                   if note else '')
     html = f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{e(label)}</title></head>
 <body style="margin:0;padding:0;background-color:#f3f1ec;color:#383c36;font-family:Arial,'Microsoft YaHei',sans-serif;">
@@ -138,6 +142,43 @@ def render_email(date, city, periods, rain, extreme, fortune, generated, festiva
 <table width="100%" cellspacing="0" cellpadding="0" style="table-layout:fixed;">{''.join(rows)}</table>
 {f'<p style="margin:12px 0 0;font-size:12px;color:#858078;">{e(festival_text)}</p>' if festival_text else ''}
 </td></tr>
-<tr><td align="center" style="padding:18px 20px;border-top:1px solid #eeeae3;font-size:10px;letter-spacing:1px;color:#96958c;">{e(note)}</td></tr>
+{knowledge_html}
+{footer_html}
 </table></td></tr></table></body></html>'''
+    return html, plain
+
+
+def render_knowledge(knowledge):
+    """Render the same discovery and source in HTML and plain text."""
+    if not knowledge:
+        return '', ''
+    e = lambda value: escape(str(value), quote=True)
+    item = knowledge.get('item')
+    if not item:
+        message = knowledge['message']
+        return (f'<tr><td style="padding:0 26px 26px;font-size:13px;line-height:1.8;">'
+                f'<strong>每日值得知道</strong><p>{e(message)}</p></td></tr>',
+                f"\n每日值得知道\n{message}\n")
+    heading = f"每日值得知道 · 第 {knowledge['index']}/{knowledge['total']} 天"
+    stamp = f"{knowledge['date']} · {knowledge['timezone']} · {item['category']}"
+    points = ''.join(f'<li style="margin:6px 0;">{e(x)}</li>' for x in item['highlights'])
+    html = (f'<tr><td style="padding:0 26px 26px;">'
+            f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+            f'style="background-color:#f0f3f5;border:1px solid #dce3e7;border-radius:8px;">'
+            f'<tr><td style="padding:20px;font-size:13px;line-height:1.9;">'
+            f'<p style="margin:0;color:#657985;font-size:12px;">{e(heading)}</p>'
+            f'<p style="margin:5px 0 14px;color:#858078;font-size:11px;">{e(stamp)}</p>'
+            f'<h2 style="margin:0 0 14px;font-size:19px;color:#3e5664;">{e(item["title"])}</h2>'
+            f'<p><strong>它是什么</strong><br>{e(item["what"])}</p>'
+            f'<p><strong>为什么你可能感兴趣</strong><br>{e(item["why"])}</p>'
+            f'<p style="margin-bottom:0;"><strong>值得看的重点</strong></p><ul style="padding-left:20px;">{points}</ul>'
+            f'<p><strong>什么时候了解或使用</strong><br>{e(item["when"])}</p>'
+            f'<p><strong>免费与注册</strong><br>{e(item["access"])}</p>'
+            f'<p><a href="{e(item["url"])}" style="color:#356879;">查看原始资料 ↗</a></p>'
+            f'</td></tr></table></td></tr>')
+    plain = (f"\n{heading}\n{stamp}\n{item['title']}\n"
+             f"它是什么：{item['what']}\n为什么你可能感兴趣：{item['why']}\n值得看的重点：\n"
+             + ''.join(f"{i}. {x}\n" for i, x in enumerate(item['highlights'], 1))
+             + f"什么时候了解或使用：{item['when']}\n免费与注册：{item['access']}\n"
+             f"原始资料：{item['url']}\n")
     return html, plain

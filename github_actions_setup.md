@@ -101,3 +101,9 @@ schedule:
 - 使用最小权限原则
 
 每日签按日期、城市与模型缓存，Actions 使用缓存跨运行复用。请勿在签语中加入私人资料。
+
+### 每日值得知道
+
+内容库已随项目提供，定时邮件自动加入一条，不需要新增密钥。默认按柏林日期从2026-10-26开始读取100条，至2027-02-02结束。若需要调整首次日期，在 Settings → Secrets and variables → Actions → Variables 设置 `KNOWLEDGE_START_DATE`（YYYY-MM-DD）；时区可用 `KNOWLEDGE_TIMEZONE` 调整，默认 Europe/Berlin。两项留空均使用内置值。
+
+运行只读本地文件，100条用完后提示补充，不重复循环。补充时保留条目顺序并追加新条目。变更需提交并推送到运行Actions的分支才会影响远程邮件。

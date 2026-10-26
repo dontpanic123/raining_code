@@ -10,6 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests
+from daily_knowledge import get_daily_knowledge
 from daily_fortune import get_daily_fortune
 from email_template import render_email
 
@@ -364,6 +365,8 @@ def send_email(subject, html, plain, recipients):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--preview", metavar="PATH", help="离线生成示例HTML，不调用API或发送邮件")
+    parser.add_argument("--knowledge-date", type=datetime.date.fromisoformat, metavar="YYYY-MM-DD",
+                        help="指定知识条目日期（默认按柏林当天日期）；不改变天气日期")
     args = parser.parse_args()
     city = os.getenv("CITY") or "Sydney"
     cities = list(dict.fromkeys(c.strip() for c in city.split(",") if c.strip())) or ["Sydney"]
@@ -382,7 +385,8 @@ def main():
         forecasts = [dict(date=date, city=name, periods=periods, rain=True, extreme=[], festivals=[])
                      for name in cities]
         html, _ = render_email(date, cities[0], periods, True, [], fortune, True, [],
-                               preview=True, forecasts=forecasts)
+                               preview=True, forecasts=forecasts,
+                               knowledge=get_daily_knowledge(args.knowledge_date))
         Path(args.preview).write_text(html, encoding="utf-8")
         logging.info("示例预览已保存：%s", args.preview)
         return
@@ -415,8 +419,9 @@ def main():
                for item in forecasts for name, p in item["periods"].items()]
     fortune, generated = get_daily_fortune(first["date"], " · ".join(item["city"] for item in forecasts), summary)
     html, plain = render_email(**first, fortune=fortune, generated=generated,
-                               forecasts=forecasts, failed=failed)
-    send_email("明日签与天气 | " + " · ".join(cities), html, plain, recipients)
+                               forecasts=forecasts, failed=failed,
+                               knowledge=get_daily_knowledge(args.knowledge_date))
+    send_email("每日值得知道 · 明日签与天气 | " + " · ".join(cities), html, plain, recipients)
     if failed:
         raise RuntimeError("已发送部分城市预报，但有城市天气获取失败")
 

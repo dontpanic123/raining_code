@@ -13,3 +13,7 @@ SENDER_PASSWORD=your_app_password
 RECIPIENT_EMAIL=recipient@example.com,another@example.com
 SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
+
+# 每日值得知道；可不设置，使用内置默认值。
+KNOWLEDGE_START_DATE=2026-10-26
+KNOWLEDGE_TIMEZONE=Europe/Berlin
