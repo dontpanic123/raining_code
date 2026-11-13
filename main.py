@@ -371,7 +371,9 @@ def main():
     city = os.getenv("CITY") or "Sydney"
     cities = list(dict.fromkeys(c.strip() for c in city.split(",") if c.strip())) or ["Sydney"]
     if args.preview:
-        date = datetime.date(2026, 10, 3)
+        preview_knowledge = get_daily_knowledge(args.knowledge_date)
+        knowledge_day = datetime.date.fromisoformat(preview_knowledge.get('date', '2026-11-13'))
+        date = knowledge_day + datetime.timedelta(days=1)
         periods = {name: {"main_desc": desc, "min_temp": low, "max_temp": high,
                           "avg_feels_like": low, "max_pop": pop}
                    for name, desc, low, high, pop in [
@@ -386,7 +388,7 @@ def main():
                      for name in cities]
         html, _ = render_email(date, cities[0], periods, True, [], fortune, True, [],
                                preview=True, forecasts=forecasts,
-                               knowledge=get_daily_knowledge(args.knowledge_date))
+                               knowledge=preview_knowledge)
         Path(args.preview).write_text(html, encoding="utf-8")
         logging.info("示例预览已保存：%s", args.preview)
         return
@@ -421,7 +423,7 @@ def main():
     html, plain = render_email(**first, fortune=fortune, generated=generated,
                                forecasts=forecasts, failed=failed,
                                knowledge=get_daily_knowledge(args.knowledge_date))
-    send_email("每日值得知道 · 明日签与天气 | " + " · ".join(cities), html, plain, recipients)
+    send_email("每日化学小知识 · 明日签与天气 | " + " · ".join(cities), html, plain, recipients)
     if failed:
         raise RuntimeError("已发送部分城市预报，但有城市天气获取失败")
 

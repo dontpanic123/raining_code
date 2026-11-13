@@ -106,19 +106,20 @@ def render_email(date, city, periods, rain, extreme, fortune, generated, festiva
     f = {key: e(value) for key, value in fortune.items()}
     plain = f"{city} · {date_text}\n{alert_plain}{label} · {fortune['title']}\n{fortune['verse']}\n\n{fortune['interpretation']}\n宜：{fortune['good']}\n忌：{fortune['avoid']}\n\n出行准备\n{advice_plain}\n\n明日天气\n" + "\n".join(lines) + f"\n{notice}\n{festival_text}\n\n{note}\n"
     knowledge_html, knowledge_plain = render_knowledge(knowledge)
-    plain += knowledge_plain
+    plain = knowledge_plain.lstrip() + "\n" + plain if knowledge_plain else plain
     footer_html = (f'<tr><td align="center" style="padding:18px 20px;border-top:1px solid #eeeae3;font-size:10px;letter-spacing:1px;color:#96958c;">{e(note)}</td></tr>'
                    if note else '')
     html = f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{e(label)}</title></head>
 <body style="margin:0;padding:0;background-color:#f3f1ec;color:#383c36;font-family:Arial,'Microsoft YaHei',sans-serif;">
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{e(city)} · 明日天气与生活寄语</div>
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">今日化学 · {e(city)}明日天气与生活寄语</div>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f3f1ec;"><tr><td align="center" style="padding:28px 12px;">
 <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="width:100%;max-width:560px;background-color:#fffdf8;border:1px solid #e5e0d6;border-radius:12px;">
 <tr><td style="padding:30px 26px 22px;">
 <p style="margin:0 0 8px;font-size:11px;letter-spacing:3px;color:#878574;">给明天的一封信</p>
 <p style="margin:0;font-size:13px;color:#75766e;">{e(city)} &nbsp; / &nbsp; {e(date_text)}</p>
 </td></tr>
+{knowledge_html}
 {alert_html}
 <tr><td style="padding:0 26px;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#edf0e7;border:1px solid #dce2d2;border-radius:8px;">
@@ -142,7 +143,6 @@ def render_email(date, city, periods, rain, extreme, fortune, generated, festiva
 <table width="100%" cellspacing="0" cellpadding="0" style="table-layout:fixed;">{''.join(rows)}</table>
 {f'<p style="margin:12px 0 0;font-size:12px;color:#858078;">{e(festival_text)}</p>' if festival_text else ''}
 </td></tr>
-{knowledge_html}
 {footer_html}
 </table></td></tr></table></body></html>'''
     return html, plain
@@ -153,13 +153,14 @@ def render_knowledge(knowledge):
     if not knowledge:
         return '', ''
     e = lambda value: escape(str(value), quote=True)
+    column_title = knowledge.get('column_title', '每日化学小知识')
     item = knowledge.get('item')
     if not item:
         message = knowledge['message']
         return (f'<tr><td style="padding:0 26px 26px;font-size:13px;line-height:1.8;">'
-                f'<strong>每日值得知道</strong><p>{e(message)}</p></td></tr>',
-                f"\n每日值得知道\n{message}\n")
-    heading = f"每日值得知道 · 第 {knowledge['index']}/{knowledge['total']} 天"
+                f'<strong>{e(column_title)}</strong><p>{e(message)}</p></td></tr>',
+                f"\n{column_title}\n{message}\n")
+    heading = f"{column_title} · 第 {knowledge['index']}/{knowledge['total']} 天"
     stamp = f"{knowledge['date']} · {knowledge['timezone']} · {item['category']}"
     points = ''.join(f'<li style="margin:6px 0;">{e(x)}</li>' for x in item['highlights'])
     html = (f'<tr><td style="padding:0 26px 26px;">'
@@ -169,16 +170,16 @@ def render_knowledge(knowledge):
             f'<p style="margin:0;color:#657985;font-size:12px;">{e(heading)}</p>'
             f'<p style="margin:5px 0 14px;color:#858078;font-size:11px;">{e(stamp)}</p>'
             f'<h2 style="margin:0 0 14px;font-size:19px;color:#3e5664;">{e(item["title"])}</h2>'
-            f'<p><strong>它是什么</strong><br>{e(item["what"])}</p>'
-            f'<p><strong>为什么你可能感兴趣</strong><br>{e(item["why"])}</p>'
-            f'<p style="margin-bottom:0;"><strong>值得看的重点</strong></p><ul style="padding-left:20px;">{points}</ul>'
-            f'<p><strong>什么时候了解或使用</strong><br>{e(item["when"])}</p>'
-            f'<p><strong>免费与注册</strong><br>{e(item["access"])}</p>'
-            f'<p><a href="{e(item["url"])}" style="color:#356879;">查看原始资料 ↗</a></p>'
+            f'<p><strong>核心概念</strong><br>{e(item["what"])}</p>'
+            f'<p><strong>为什么重要</strong><br>{e(item["why"])}</p>'
+            f'<p style="margin-bottom:0;"><strong>机制与边界</strong></p><ul style="padding-left:20px;">{points}</ul>'
+            f'<p><strong>何时应用</strong><br>{e(item["when"])}</p>'
+            f'<p><strong>资料访问</strong><br>{e(item["access"])}</p>'
+            f'<p><a href="{e(item["url"])}" style="color:#356879;">参考资料与延伸阅读 ↗</a></p>'
             f'</td></tr></table></td></tr>')
     plain = (f"\n{heading}\n{stamp}\n{item['title']}\n"
-             f"它是什么：{item['what']}\n为什么你可能感兴趣：{item['why']}\n值得看的重点：\n"
+             f"核心概念：{item['what']}\n为什么重要：{item['why']}\n机制与边界：\n"
              + ''.join(f"{i}. {x}\n" for i, x in enumerate(item['highlights'], 1))
-             + f"什么时候了解或使用：{item['when']}\n免费与注册：{item['access']}\n"
+             + f"何时应用：{item['when']}\n资料访问：{item['access']}\n"
              f"原始资料：{item['url']}\n")
     return html, plain
